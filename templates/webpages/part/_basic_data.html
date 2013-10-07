@@ -151,8 +151,24 @@
            <th align="left" nowrap>[% LxERP.format_amount(SELF.part.onhand) %] [% SELF.part.unit | html %]</th>
           </tr>
           <tr>
+           <th align="right" nowrap="true">[% 'Lead Time' | $T8 %]</th>
+           <td>[% L.input_tag("part.leadtime_as_number", SELF.part.leadtime_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
+          </tr>
+          <tr>
+           <th align="right" nowrap="true">[% 'Consume' | $T8 %]</th>
+           <td>[% L.input_tag("part.consume_as_number", SELF.part.consume_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
+          </tr>
+          <tr>
+           <th align="right" nowrap="true">[% 'Order Size' | $T8 %]</th>
+           <td>[% L.input_tag("part.ordersize_as_number", SELF.part.ordersize_as_number, size=10, class="numeric") %]</td>
+          </tr>
+          <tr>
            <th align="right" nowrap="true">[% 'ROP' | $T8 %]</th>
-           <td>[% L.input_tag("part.rop_as_number", SELF.part.rop_as_number, size=10, class="reformat_number numeric") %]</td>
+           <td>[% L.input_tag("part.rop_as_number", SELF.part.rop_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
+          </tr>
+          <tr>
+           <th align="right" nowrap="true">[% 'Reorder Level' | $T8 %]</th>
+           <td><div id="reorder_level" ></div></td>
           </tr>
           [% IF SELF.all_warehouses.size %]
           <tr>
@@ -220,6 +236,13 @@
        <tr>
         <th align="right" nowrap>[% 'Drawing' | $T8 %]</th>
         <td>[% L.input_tag("part.drawing", SELF.part.drawing, size=40) %]</td>
+       </tr>
+       <tr>
+         <th align="right" nowrap>[% 'Internal Notes' | $T8 %]</th>
+         <td>
+           <textarea id="part.intnotes" name="part.intnotes" rows="[% HTML.escape(intnotes_rows) %]" cols="62" wrap="soft" class="tooltipster-html">
+             [% HTML.escape(SELF.part.intnotes) %]</textarea>
+         </td>
        </tr>
       </table>
      </td>

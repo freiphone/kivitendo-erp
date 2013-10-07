@@ -45,6 +45,7 @@ use SL::HTML::Restrict;
 use SL::TransNumber;
 use SL::Util qw(trim);
 use SL::DB;
+use SL::DB::Language;
 use Carp;
 
 use strict;
@@ -170,7 +171,7 @@ sub all_parts {
   $form->{parts}     = +{ };
   $form->{soldtotal} = undef if $form->{l_soldtotal}; # security fix. top100 insists on putting strings in there...
 
-  my @simple_filters       = qw(partnumber ean description partsgroup microfiche drawing onhand 
+  my @simple_filters       = qw(partnumber ean description partsgroup microfiche drawing onhand
                                 intnotes consume ordersize leadtime);
   my @project_filters      = qw(projectnumber projectdescription);
   my @makemodel_filters    = qw(make model);
@@ -192,6 +193,8 @@ sub all_parts {
   my %joins_needed  = ();
 
   my %joins = (
+    bin        => 'LEFT JOIN bin bin      ON (bin.id       = p.bin_id)',
+    warehouse  => 'LEFT JOIN warehouse wh      ON (wh.id       = p.warehouse_id)',
     partsgroup => 'LEFT JOIN partsgroup pg      ON (pg.id       = p.partsgroup_id)',
     makemodel  => 'LEFT JOIN makemodel mm       ON (mm.parts_id = p.id)',
     pfac       => 'LEFT JOIN price_factors pfac ON (pfac.id     = p.price_factor_id)',
@@ -216,9 +219,10 @@ sub all_parts {
     mv         => 'LEFT JOIN vendor AS mv ON mv.id = mm.make',
     project    => 'LEFT JOIN project AS pj ON pj.id = COALESCE(ioi.project_id, apoe.globalproject_id)',
   );
-  my @join_order = qw(partsgroup makemodel mv invoice_oi apoe cv pfac project);
+  my @join_order = qw(bin warehouse partsgroup makemodel mv invoice_oi apoe cv pfac project);
 
   my %table_prefix = (
+     warehousedescription => 'wh.', bindescription => 'bin.',
      deliverydate => 'apoe.', serialnumber => 'ioi.',
      transdate    => 'apoe.', trans_id     => 'ioi.',
      module       => 'apoe.', name         => 'cv.',
@@ -350,6 +354,22 @@ sub all_parts {
     push @bind_vars, $form->{"partsgroup_id"};
   }
 
+  if ($form->{"warehouse_id"}) {
+    $form->{"l_warehousedescription"} = '1'; # show the column
+    push @select_tokens, 'warehouse_id';
+    # push @select_tokens, 'wh.description as warehousedescription';
+    push @where_tokens, "p.warehouse_id = ?";
+    push @bind_vars, $form->{"warehouse_id"};
+  }
+
+  if ($form->{"bin_id"}) {
+    $form->{"l_bindescription"} = '1'; # show the column
+    push @select_tokens, 'bin_id';
+    # push @select_tokens, 'bin.description as bindescription';
+    push @where_tokens, "p.bin_id = ?";
+    push @bind_vars, $form->{"bin_id"};
+  }
+
   if ($form->{shop} ne '') {
     $form->{l_shop} = '1'; # show the column
     if ($form->{shop} eq '0' || $form->{shop} eq 'f') {
@@ -450,6 +470,7 @@ sub all_parts {
   my @bsooqr_tokens = ();
 
   push @select_tokens, @qsooqr_flags, 'quotation', 'cv', 'ioi.id', 'ioi.ioi'  if $bsooqr;
+  push @select_tokens, 'warehousedescription', 'bindescription'                    if $form->{l_warehousedescription} || $form->{l_bindescription};
   push @select_tokens, @deliverydate_flags                                    if $bsooqr && $form->{l_deliverydate};
   push @select_tokens, $q_assembly_lastcost                                   if $form->{l_assembly} && $form->{l_lastcost};
   push @bsooqr_tokens, q|module = 'ir' AND NOT ioi.assemblyitem|              if $form->{bought};
@@ -462,6 +483,8 @@ sub all_parts {
   push @bsooqr_tokens, q|module = 'oe' AND     quotation AND cv = 'vendor'|   if $form->{rfq};
   push @where_tokens, join ' OR ', map { "($_)" } @bsooqr_tokens              if $bsooqr;
 
+  $joins_needed{warehouse}  = 1;
+  $joins_needed{bin}  = 1;
   $joins_needed{partsgroup}  = 1;
   $joins_needed{pfac}        = 1;
   $joins_needed{project}     = 1 if grep { $form->{$_} || $form->{"l_$_"} } @project_filters;
@@ -502,6 +525,19 @@ sub all_parts {
   my $order_clause = " ORDER BY " . $token_builder->($form->{sort}) . ($form->{revers} ? ' DESC' : ' ASC');
 
   my $select_clause = join ', ',    map { $token_builder->($_, 1) } @select_tokens;
+
+  # Show Translations
+  if ($form->{l_languages}) {
+    push @group_tokens, @select_tokens;
+    map { s/.*\sAS\s+//si } @group_tokens;
+    my $languages = SL::DB::Manager::Language->get_all_sorted;
+    foreach my $language (@{ $languages }) {
+      $select_clause .= ", (SELECT translation FROM translation WHERE".
+                        " parts_id = p.id and language_id =(SELECT id FROM language WHERE description =";
+      $select_clause .= " '$language->{description}')) as $language->{description}";
+    }
+  } # End Show Translations
+
   my $join_clause   = join ' ',     @joins{ grep $joins_needed{$_}, @join_order };
   my $where_clause  = join ' AND ', map { "($_)" } @where_tokens;
   my $group_clause  = @group_tokens ? ' GROUP BY ' . join ', ',    map { $token_builder->($_) } @group_tokens : '';

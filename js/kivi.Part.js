@@ -262,6 +262,31 @@ namespace('kivi.Part', function(ns) {
     $.post("controller.pl", { action: 'Part/warehouse_changed', warehouse_id: function(){ return $('#part_warehouse_id').val() } },   kivi.eval_json_result);
   }
 
+  ns.calcReorderLevel = function() {
+    var leadtime = Math.floor(Number(kivi.parse_amount($('#part_leadtime_as_number').val()))) + 7 ;
+    var consume  = Number(kivi.parse_amount($('#part_consume_as_number').val())) / 30.0 ;
+    var rop      = Number(kivi.parse_amount($('#part_rop_as_number').val()));
+    $('#reorder_level').text(kivi.format_amount(rop + (consume * leadtime),2)) ;
+    return false;
+  };
+
+  ns.parttypeChanged = function(__event) {
+    var ls = document.getElementById("l_service");
+    var lp = document.getElementById("l_part");
+    var la = document.getElementById("l_assembly");
+    var lt = document.getElementById("l_assortment");
+    var os = ( ls.checked && !lp.checked && !la.checked && !lt.checked) ? 'hidden':'visible';
+    var ns = ( !ls.checked && !lp.checked && la.checked && !lt.checked) ? 'hidden':'visible';
+    document.getElementById("warehouse_tr").style.visibility = os;
+    document.getElementById("no_service").style.visibility   = os;
+    document.getElementById("no_service1").style.visibility  = os;
+    document.getElementById("no_service2").style.visibility  = os;
+    document.getElementById("no_service3").style.visibility  = os;
+    document.getElementById("no_assembly1").style.visibility = ns;
+    document.getElementById("no_assembly2").style.visibility = ns;
+    document.getElementById("is_assembly").style.visibility  = la.checked ?'visible':'hidden';
+  };
+
   $(function(){
 
     // assortment
@@ -270,7 +295,21 @@ namespace('kivi.Part', function(ns) {
 
     $('#ic').on('focusout', '.reformat_number', function(event) {
        ns.reformat_number(event);
-    })
+    });
+
+    $('#ic5').on('focusout', '.calc_reorder', function(event) {
+       ns.calcReorderLevel();
+    });
+
+    $('.calc_reorder').keydown(function(event) {
+      if(event.keyCode == 13) {
+        event.preventDefault();
+        ns.calcReorderLevel();
+        return false;
+      }
+    });
+
+    ns.calcReorderLevel();
 
     $('.add_assortment_item_input').keydown(function(event) {
       if(event.keyCode == 13) {

@@ -94,10 +94,19 @@ sub search {
                                                                            'include_prefix' => 'l_',
                                                                            'include_value'  => 'Y');
 
+  $::request->layout->use_javascript("${_}.js") for qw(kivi.Part);
   $form->header;
 
   $form->get_lists('partsgroup'    => 'ALL_PARTSGROUPS');
-  print $form->parse_html_template('ic/search');
+  $form->get_lists('warehouses' => { 'key'    => 'WAREHOUSES',
+                                     'bins'   => 'BINS', });
+  $form->{jsscript} = 1;
+
+  my %is_xyz     = ("is_part" => 1, "is_service" => 0, "is_assembly" =>1 );
+  print $form->parse_html_template('ic/search', { %is_xyz,
+                                                  dateformat => $myconfig{dateformat},
+                                                  all_warehouses => $form->{WAREHOUSES},
+                                                  limit => $myconfig{vclimit}, });
 
   $lxdebug->leave_sub();
 }    #end search()
@@ -211,6 +220,8 @@ sub generate_report {
     'type_and_classific' => { 'text' => $locale->text('Type'), },
     'projectnumber'      => { 'text' => $locale->text('Project Number'), },
     'projectdescription' => { 'text' => $locale->text('Project Description'), },
+    'warehousedescription' => { 'text' => $locale->text('Warehouse'), },
+    'bindescription'       => { 'text' => $locale->text('Bin'), },
   );
 
   $revers     = $form->{revers};
@@ -279,6 +290,19 @@ sub generate_report {
     my $pg = SL::DB::PartsGroup->new(id => $form->{partsgroup_id})->load;
     $pg_name = $pg->{'partsgroup'};
   }
+  
+  # get name of warehouse if id is given
+  my $wh_name;
+  if ($form->{warehouse_id}) {
+    my $pg = SL::DB::Warehouse->new(id => $form->{warehouse_id})->load;
+    $wh_name = $pg->{'description'};
+  }
+  # get name of bin if id is given
+  my $bin_name;
+  if ($form->{bin_id}) {
+    my $pg = SL::DB::Bin->new(id => $form->{bin_id})->load;
+    $bin_name = $pg->{'description'};
+  }
 
   # these strings get displayed at the top of the results to indicate the user which switches were used
   my %optiontexts = (
@@ -300,6 +324,10 @@ sub generate_report {
     partnumber    => $locale->text('Part Number')      . ": '$form->{partnumber}'",
     partsgroup    => $locale->text('Partsgroup')       . ": '$form->{partsgroup}'",
     partsgroup_id => $locale->text('Partsgroup')       . ": '$pg_name'",
+    warehouse     => $locale->text('Warehouse')        . ": '$form->{warehouse}'",
+    warehouse_id  => $locale->text('Warehouse')        . ": '$wh_name'",
+    bin           => $locale->text('Bin')              . ": '$form->{bin}'",
+    bin_id        => $locale->text('Bin')              . ": '$bin_name'",
     serialnumber  => $locale->text('Serial Number')    . ": '$form->{serialnumber}'",
     description   => $locale->text('Part Description') . ": '$form->{description}'",
     make          => $locale->text('Make')             . ": '$form->{make}'",
@@ -308,12 +336,14 @@ sub generate_report {
     microfiche    => $locale->text('Microfiche')       . ": '$form->{microfiche}'",
     l_soldtotal   => $locale->text('Qty in Selected Records'),
     ean           => $locale->text('EAN')              . ": '$form->{ean}'",
+    intnotes      => $locale->text('Internal Notes')   . ": '$form->{intnotes}'",
     insertdatefrom => $locale->text('Insert Date') . ": " . $locale->text('From')       . " " . $locale->date(\%myconfig, $form->{insertdatefrom}, 1),
     insertdateto   => $locale->text('Insert Date') . ": " . $locale->text('To (time)')  . " " . $locale->date(\%myconfig, $form->{insertdateto}, 1),
   );
 
   my @itemstatus_keys = qw(active obsolete orphaned onhand short);
   my @callback_keys   = qw(onorder ordered rfq quoted bought sold ondeliver delivered partnumber partsgroup partsgroup_id serialnumber description make model
+                           partstypes_id warehouse warehouse_id bin bin_id customername customernumber intnotes
                            drawing microfiche l_soldtotal l_deliverydate transdatefrom transdateto insertdatefrom insertdateto ean shop all);
 
   # calculate dependencies
@@ -422,13 +452,31 @@ sub generate_report {
   }
   push @columns, @pricegroup_columns;
 
+  # Sprachen Ausgabe
+  my $languages = SL::DB::Manager::Language->get_all_sorted;
+  my @sprachen_columns;
+  my %column_defs_sprachen;
+  if ($form->{l_languages}) {
+    foreach my $language (@{ $languages }) {
+        push @sprachen_columns, lc $language->{description};
+       #push @sprachen_columns, lc $language->{description} . 'long';
+    }
+    foreach my $language (@{ $languages }) {
+      %column_defs_sprachen = ( %column_defs_sprachen,
+        lc $language->{description}               => { 'text' => $language->{description}, 'visible' => 1,},
+       #lc $language->{description} . 'long'      => { 'text' => $language->{description} . ' Lang', 'visible' => 1,},
+      );
+    }
+  }
+  push @columns, @sprachen_columns;
+
   my @includeable_custom_variables = grep { $_->{includeable} } @{ $cvar_configs };
   my @searchable_custom_variables  = grep { $_->{searchable} }  @{ $cvar_configs };
   my %column_defs_cvars            = map { +"cvar_$_->{name}" => { 'text' => $_->{description} } } @includeable_custom_variables;
 
   push @columns, map { "cvar_$_->{name}" } @includeable_custom_variables;
 
-  %column_defs = (%column_defs, %column_defs_cvars, %column_defs_pricegroups);
+  %column_defs = (%column_defs, %column_defs_cvars, %column_defs_pricegroups, %column_defs_sprachen);
   map { $column_defs{$_}->{visible} ||= $form->{"l_$_"} ? 1 : 0 } @columns;
   map { $column_defs{$_}->{align}   = 'right' } qw(onhand sellprice listprice lastcost linetotalsellprice linetotallastcost linetotallistprice
        rop weight shop soldtotal consume ordersize leadtime), @pricegroup_columns;
