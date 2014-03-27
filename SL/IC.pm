@@ -403,11 +403,16 @@ sub all_parts {
   }
 
   my $q_assembly_lastcost =
-    qq|(SELECT SUM(a_lc.qty * p_lc.lastcost / COALESCE(pfac_lc.factor, 1))
-        FROM assembly a_lc
-        LEFT JOIN parts p_lc            ON (a_lc.parts_id        = p_lc.id)
-        LEFT JOIN price_factors pfac_lc ON (p_lc.price_factor_id = pfac_lc.id)
-        WHERE (a_lc.id = p.id)) AS lastcost|;
+    qq| CASE WHEN p.lastcost > 0 THEN
+          p.lastcost
+        ELSE
+          (SELECT SUM(a_lc.qty * p_lc.lastcost / COALESCE(pfac_lc.factor, 1))
+           FROM assembly a_lc
+           LEFT JOIN parts p_lc            ON (a_lc.parts_id        = p_lc.id)
+           LEFT JOIN price_factors pfac_lc ON (p_lc.price_factor_id = pfac_lc.id)
+           WHERE (a_lc.id = p.id))
+        END  AS lastcost|;
+
   $table_prefix{$q_assembly_lastcost} = ' ';
 
   # special case makemodel search

@@ -338,8 +338,9 @@ sub generate_report {
 
   if ($form->{l_linetotal}) {
     $form->{l_qty} = "Y";
+    $form->{l_onhand} = "Y";
     $form->{l_linetotalsellprice} = "Y" if $form->{l_sellprice};
-    $form->{l_linetotallastcost}  = $form->{searchitems} eq 'assembly' && !$form->{bom} ? "" : 'Y' if  $form->{l_lastcost};
+    $form->{l_linetotallastcost}  = "Y" if  $form->{l_lastcost};
     $form->{l_linetotallistprice} = "Y" if $form->{l_listprice};
   }
   $form->{"l_type_and_classific"} = "Y";
@@ -523,6 +524,7 @@ sub generate_report {
       $row->{$_}{data}            = $form->format_amount(\%myconfig, $ref->{$_}, 2);
       $row->{"linetotal$_"}{data} = $form->format_amount(\%myconfig, $ref->{onhand} * $ref->{$_}, 2);
     }
+
     foreach ( @pricegroup_columns ) {
       $row->{$_}{data}            = $form->format_amount(\%myconfig, $ref->{"$_"}, 2);
     };
