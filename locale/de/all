@@ -907,6 +907,7 @@ $self->{texts} = {
   'Deleted'                     => 'Gelöscht',
   'Delivered'                   => 'Geliefert',
   'Delivered amount'            => 'Gelieferter Betrag',
+  'Delivered out'               => 'Ausgeliefert',
   'Delivery Date'               => 'Lieferdatum',
   'Delivery Order'              => 'Lieferschein',
   'Delivery Order Date'         => 'Lieferscheindatum',

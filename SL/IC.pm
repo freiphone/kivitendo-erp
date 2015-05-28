@@ -178,8 +178,8 @@ sub all_parts {
   my @like_filters         = (@simple_filters, @invoice_oi_filters);
   my @all_columns          = (@simple_filters, @makemodel_filters, @apoe_filters, @project_filters, qw(serialnumber));
   my @simple_l_switches    = (@all_columns, qw(notes listprice sellprice lastcost priceupdate weight unit rop image shop insertdate));
-  my @oe_flags             = qw(bought sold onorder ordered rfq quoted);
-  my @qsooqr_flags         = qw(invnumber ordnumber quonumber trans_id name module qty);
+  my @oe_flags             = qw(bought sold onorder ordered rfq quoted ondeliver delivered);
+  my @qsooqr_flags         = qw(invnumber ordnumber donumber quonumber trans_id name module qty);
   my @deliverydate_flags   = qw(deliverydate);
 #  my @other_flags          = qw(onhand); # ToDO: implement these
 #  my @inactive_flags       = qw(l_subtotal short l_linetotal);
@@ -197,13 +197,15 @@ sub all_parts {
     invoice_oi =>
       q|LEFT JOIN (
          SELECT parts_id, description, serialnumber, trans_id, unit, sellprice, qty,          assemblyitem,         deliverydate, 'invoice'    AS ioi, project_id, id FROM invoice UNION
+         SELECT parts_id, description, serialnumber, delivery_order_id, unit, sellprice, qty, FALSE AS assemblyitem, NULL AS deliverydate, 'delivery_order_items'    AS ioi, project_id, id FROM delivery_order_items UNION
          SELECT parts_id, description, serialnumber, trans_id, unit, sellprice, qty, FALSE AS assemblyitem, NULL AS deliverydate, 'orderitems' AS ioi, project_id, id FROM orderitems
        ) AS ioi ON ioi.parts_id = p.id|,
     apoe       =>
       q|LEFT JOIN (
-         SELECT id, transdate, 'ir' AS module, ordnumber, quonumber,         invnumber, FALSE AS quotation, NULL AS customer_id,         vendor_id,    NULL AS deliverydate, globalproject_id, 'invoice'    AS ioi FROM ap UNION
-         SELECT id, transdate, 'is' AS module, ordnumber, quonumber,         invnumber, FALSE AS quotation,         customer_id, NULL AS vendor_id,            deliverydate, globalproject_id, 'invoice'    AS ioi FROM ar UNION
-         SELECT id, transdate, 'oe' AS module, ordnumber, quonumber, NULL AS invnumber,          quotation,         customer_id,         vendor_id, reqdate AS deliverydate, globalproject_id, 'orderitems' AS ioi FROM oe
+         SELECT id, transdate, 'ir' AS module, ordnumber, quonumber, NULL as donumber,         invnumber, FALSE AS quotation, NULL AS customer_id,         vendor_id,    NULL AS deliverydate, globalproject_id, 'invoice'    AS ioi FROM ap UNION
+         SELECT id, transdate, 'is' AS module, ordnumber, quonumber, donumber,        invnumber, FALSE AS quotation,         customer_id, NULL AS vendor_id,            deliverydate, globalproject_id, 'invoice'    AS ioi FROM ar UNION
+         SELECT id, transdate, 'do' AS module, ordnumber, NULL as quonumber, donumber, NULL as invnumber, FALSE AS quotation,         customer_id, vendor_id, NULL AS deliverydate, globalproject_id, 'delivery_order_items'    AS ioi FROM delivery_orders UNION
+         SELECT id, transdate, 'oe' AS module, ordnumber, quonumber, NULL AS donumber, NULL AS invnumber,          quotation,         customer_id,         vendor_id, reqdate AS deliverydate, globalproject_id, 'orderitems' AS ioi FROM oe
        ) AS apoe ON ((ioi.trans_id = apoe.id) AND (ioi.ioi = apoe.ioi))|,
     cv         =>
       q|LEFT JOIN (
@@ -219,6 +221,7 @@ sub all_parts {
      deliverydate => 'apoe.', serialnumber => 'ioi.',
      transdate    => 'apoe.', trans_id     => 'ioi.',
      module       => 'apoe.', name         => 'cv.',
+     donumber     => 'apoe.',
      ordnumber    => 'apoe.', make         => 'mm.',
      quonumber    => 'apoe.', model        => 'mm.',
      invnumber    => 'apoe.', partsgroup   => 'pg.',
@@ -428,6 +431,8 @@ sub all_parts {
   push @select_tokens, $q_assembly_lastcost                                   if $form->{l_assembly} && $form->{l_lastcost};
   push @bsooqr_tokens, q|module = 'ir' AND NOT ioi.assemblyitem|              if $form->{bought};
   push @bsooqr_tokens, q|module = 'is' AND NOT ioi.assemblyitem|              if $form->{sold};
+  push @bsooqr_tokens, q|module = 'do' AND cv = 'customer'| if $form->{delivered};
+  push @bsooqr_tokens, q|module = 'do' AND cv = 'vendor'|   if $form->{ondeliver};
   push @bsooqr_tokens, q|module = 'oe' AND NOT quotation AND cv = 'customer'| if $form->{ordered};
   push @bsooqr_tokens, q|module = 'oe' AND NOT quotation AND cv = 'vendor'|   if $form->{onorder};
   push @bsooqr_tokens, q|module = 'oe' AND     quotation AND cv = 'customer'| if $form->{quoted};
@@ -468,7 +473,7 @@ sub all_parts {
 
   my $token_builder = $make_token_builder->(\%joins_needed);
 
-  my @sort_cols    = (@simple_filters, qw(id priceupdate onhand invnumber ordnumber quonumber name serialnumber soldtotal deliverydate insertdate shop));
+  my @sort_cols    = (@simple_filters, qw(id priceupdate onhand invnumber ordnumber donumber quonumber name serialnumber soldtotal deliverydate insertdate shop));
      $form->{sort} = 'id' unless grep { $form->{"l_$_"} } grep { $form->{sort} eq $_ } @sort_cols; # sort by id if unknown or invisible column
   my $sort_order   = ($form->{revers} ? ' DESC' : ' ASC');
   my $order_clause = " ORDER BY " . $token_builder->($form->{sort}) . ($form->{revers} ? ' DESC' : ' ASC');
@@ -481,6 +486,8 @@ sub all_parts {
   my %oe_flag_to_cvar = (
     bought   => 'invoice',
     sold     => 'invoice',
+    ondeliver  => 'delivery_order_items',
+    delivered  => 'delivery_order_items',
     onorder  => 'orderitems',
     ordered  => 'orderitems',
     rfq      => 'orderitems',

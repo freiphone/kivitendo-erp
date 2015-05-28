@@ -141,6 +141,17 @@
             </tr>
 
             <tr>
+             [%- UNLESS is_assembly %]
+             <td>[%- L.checkbox_tag('ondeliver', label=LxERP.t8('Delivered')) %]</td>
+             [%- END %]
+             <td>[%- L.checkbox_tag('delivered', label=LxERP.t8('Delivered out')) %]</td>
+            </tr>
+
+            <tr>
+             <td colspan="2"><hr size="1" noshade></td>
+            </tr>
+
+            <tr>
              <td>[%- L.checkbox_tag('rfq', label=LxERP.t8('RFQ')) %]</td>
              <td>[%- L.checkbox_tag('quoted', label=LxERP.t8('Quoted')) %]</td>
             </tr>

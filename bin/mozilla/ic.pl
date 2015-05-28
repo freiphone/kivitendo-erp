@@ -182,6 +182,7 @@ sub generate_report {
     'listprice'          => { 'text' => $locale->text('List Price'), },
     'microfiche'         => { 'text' => $locale->text('Microfiche'), },
     'name'               => { 'text' => $locale->text('Name'), },
+    'donumber'           => { 'text' => $locale->text('Delivery Order Number'), },
     'onhand'             => { 'text' => $locale->text('Stocked Qty'), },
     'ordnumber'          => { 'text' => $locale->text('Order Number'), },
     'partnumber'         => { 'text' => $locale->text('Part Number'), },
@@ -231,13 +232,15 @@ sub generate_report {
   # if any of these are ticked the behavior changes slightly for lastcost
   # since all those are aggregation checks for the legder tables this is an internal switch
   # refered to as ledgerchecks
-  $form->{ledgerchecks} = 'Y' if (   $form->{bought} || $form->{sold} || $form->{onorder}
+  $form->{ledgerchecks} = 'Y' if (   $form->{bought} || $form->{sold} || $form->{ondeliver} || $form->{delivered} || $form->{onorder}
                                   || $form->{ordered} || $form->{rfq} || $form->{quoted});
 
   # if something should be activated if something else is active, enter it here
   my %dependencies = (
     onhand       => [ qw(l_onhand) ],
     short        => [ qw(l_onhand) ],
+    ondeliver    => [ qw(l_donumber) ],
+    delivered    => [ qw(l_donumber) ],
     onorder      => [ qw(l_ordnumber) ],
     ordered      => [ qw(l_ordnumber) ],
     rfq          => [ qw(l_quonumber) ],
@@ -263,6 +266,8 @@ sub generate_report {
     orphaned      => $locale->text('Orphaned'),
     onhand        => $locale->text('On Hand'),
     short         => $locale->text('Short'),
+    ondeliver     => $locale->text('Delivered'),
+    delivered     => $locale->text('Delivered out'),
     onorder       => $locale->text('On Order'),
     ordered       => $locale->text('Ordered'),
     rfq           => $locale->text('RFQ'),
@@ -287,7 +292,7 @@ sub generate_report {
   );
 
   my @itemstatus_keys = qw(active obsolete orphaned onhand short);
-  my @callback_keys   = qw(onorder ordered rfq quoted bought sold partnumber partsgroup partsgroup_id serialnumber description make model
+  my @callback_keys   = qw(onorder ordered rfq quoted bought sold ondeliver delivered partnumber partsgroup partsgroup_id serialnumber description make model
                            drawing microfiche l_soldtotal l_deliverydate transdatefrom transdateto insertdatefrom insertdateto ean shop all);
 
   # calculate dependencies
@@ -334,6 +339,8 @@ sub generate_report {
     # qty is irrelevant unless bought or sold
     if (   $form->{bought}
         || $form->{sold}
+        || $form->{ondeliver}
+        || $form->{delivered}
         || $form->{onorder}
         || $form->{ordered}
         || $form->{rfq}
@@ -349,7 +356,7 @@ sub generate_report {
   # so reset it to sold (the most common option), and issue a warning
   # ...
   # also it doesn't make sense without bsooqr. disable and issue a warning too
-  my @bsooqr = qw(sold bought onorder ordered rfq quoted);
+  my @bsooqr = qw(sold bought ondeliver delivered onorder ordered rfq quoted);
   my $bsooqr_mode = grep { $form->{$_} } @bsooqr;
   if ($form->{l_subtotal} && 1 < $bsooqr_mode) {
     my $enabled       = first { $form->{$_} } @bsooqr;
@@ -373,7 +380,7 @@ sub generate_report {
   my @columns = qw(
     partnumber type_and_classific description notes partsgroup bin onhand rop soldtotal unit listprice
     linetotallistprice sellprice linetotalsellprice lastcost linetotallastcost
-    priceupdate weight image drawing microfiche invnumber ordnumber quonumber
+    priceupdate weight image drawing microfiche invnumber ordnumber quonumber donumber
     transdate name serialnumber deliverydate ean projectnumber projectdescription
     insertdate shop
   );
@@ -415,7 +422,7 @@ sub generate_report {
   my $callback         = build_std_url('action=generate_report', grep { $form->{$_} } @hidden_variables);
 
   my @sort_full        = qw(partnumber description onhand soldtotal deliverydate insertdate shop);
-  my @sort_no_revers   = qw(partsgroup bin priceupdate invnumber ordnumber quonumber name image drawing serialnumber);
+  my @sort_no_revers   = qw(partsgroup bin priceupdate invnumber ordnumber quonumber donumber name image drawing serialnumber);
 
   foreach my $col (@sort_full) {
     $column_defs{$col}->{link} = join '&', $callback, "sort=$col", map { "$_=" . E($form->{$_}) } qw(revers lastsort);
@@ -540,6 +547,8 @@ sub generate_report {
     } else {
       $row->{invnumber}{link} = build_std_url("script=$ref->{module}.pl", 'action=edit', 'type=invoice', 'id=' . E($ref->{trans_id}), 'callback') if ($ref->{invnumber});
     }
+    # Delivery Order Link if empty
+    $row->{donumber}{link} = build_std_url("script=do.pl", 'action=edit', 'type=' . E($ref->{cv} eq 'vendor' ? 'purchase_' : 'sales_') . 'delivery_order', 'id=' . E($ref->{trans_id}), 'callback') if $ref->{donumber};
 
     # set properties of images
     if ($ref->{image} && (lc $report->{options}->{output_format} eq 'html')) {
