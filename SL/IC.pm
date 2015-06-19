@@ -222,7 +222,7 @@ sub all_parts {
   my @join_order = qw(bin warehouse partsgroup makemodel mv invoice_oi apoe cv pfac project);
 
   my %table_prefix = (
-     warehousedescription => 'wh.', bindescription => 'bin.',
+     warehouse_desc => 'wh.', bin_desc     => 'bin.',
      deliverydate => 'apoe.', serialnumber => 'ioi.',
      transdate    => 'apoe.', trans_id     => 'ioi.',
      module       => 'apoe.', name         => 'cv.',
@@ -268,8 +268,8 @@ sub all_parts {
     'ioi.id'               => 'ioi_id',
     'ioi.ioi'              => 'ioi',
     'projectdescription'   => 'projectdescription',
-    'warehousedescription' => 'warehousedescription',
-    'bindescription'       => 'bindescription',
+    'warehouse_desc'       => 'warehouse_desc',
+    'bin_desc'             => 'bin_desc',
     'customername'         => 'customername',
     'customernumber'       => 'customernumber',
     'make'                 => 'make',
@@ -278,8 +278,8 @@ sub all_parts {
   my %real_column = (
     projectdescription     => 'description',
     projectdescription     => 'description',
-    warehousedescription   => 'description',
-    bindescription         => 'description',
+    warehouse_desc         => 'description',
+    bin_desc               => 'description',
     customername           => 'name',
     customernumber         => 'customer_partnumber',
     make                   => 'name',
@@ -354,20 +354,18 @@ sub all_parts {
     push @bind_vars, $form->{"partsgroup_id"};
   }
 
-  if ($form->{"warehouse_id"}) {
-    $form->{"l_warehousedescription"} = '1'; # show the column
+  if ($form->{"part_warehouse_id"}) {
+    $form->{"l_warehouse_desc"} = '1'; # show the column
     push @select_tokens, 'warehouse_id';
-    # push @select_tokens, 'wh.description as warehousedescription';
     push @where_tokens, "p.warehouse_id = ?";
-    push @bind_vars, $form->{"warehouse_id"};
+    push @bind_vars, $form->{"part_warehouse_id"};
   }
 
-  if ($form->{"bin_id"}) {
-    $form->{"l_bindescription"} = '1'; # show the column
+  if ($form->{"part"}{"bin_id"}) {
+    $form->{"l_bin_desc"} = '1'; # show the column
     push @select_tokens, 'bin_id';
-    # push @select_tokens, 'bin.description as bindescription';
     push @where_tokens, "p.bin_id = ?";
-    push @bind_vars, $form->{"bin_id"};
+    push @bind_vars, $form->{"part"}{"bin_id"};
   }
 
   if ($form->{shop} ne '') {
@@ -419,6 +417,8 @@ sub all_parts {
     push @where_tokens, 'p.onhand = 0'                 if /orphaned/;
     push @where_tokens, 'NOT p.obsolete'               if /active/;
     push @where_tokens, '    p.obsolete',              if /obsolete/;
+  }
+  for ($form->{storagestatus}) {
     push @where_tokens, 'p.onhand > 0',                if /onhand/;
     push @where_tokens, 'p.onhand < p.rop',            if /short/;
   }
@@ -470,7 +470,7 @@ sub all_parts {
   my @bsooqr_tokens = ();
 
   push @select_tokens, @qsooqr_flags, 'quotation', 'cv', 'ioi.id', 'ioi.ioi'  if $bsooqr;
-  push @select_tokens, 'warehousedescription', 'bindescription'                    if $form->{l_warehousedescription} || $form->{l_bindescription};
+  push @select_tokens, 'warehouse_desc', 'bin_desc'                           if $form->{l_warehouse_desc} || $form->{l_bin_desc};
   push @select_tokens, @deliverydate_flags                                    if $bsooqr && $form->{l_deliverydate};
   push @select_tokens, $q_assembly_lastcost                                   if $form->{l_assembly} && $form->{l_lastcost};
   push @bsooqr_tokens, q|module = 'ir' AND NOT ioi.assemblyitem|              if $form->{bought};

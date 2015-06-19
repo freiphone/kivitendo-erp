@@ -4,6 +4,7 @@
 [%- USE L %]
 <h1>[% 'Update prices' | $T8 %]</h1>
 
+<<<<<<< 0296ffb3cecb857397ba8961768b8d21a78c6e78
 [% PROCESS 'common/flash.html' %]
 
 <form method="post" action="controller.pl">
@@ -48,6 +49,17 @@
     [% L.radio_button_tag('filter.itemstatus', value='obsolete', label=LxERP.t8('Obsolete'), checked=FORM.filter.itemstatus=='obsolete') %]
     [% L.radio_button_tag('filter.itemstatus', value='orphaned', label=LxERP.t8('Orphaned'), checked=FORM.filter.itemstatus=='orphaned') %]
    </td>
+  </tr>
+  <tr>
+    <td></td>
+    <td colspan="3">
+      <input name="storagestatus" id="storagestatus_all" class="radio" type="radio" value="" checked>
+      <label for="storagestatus_onhand">[% 'All' | $T8 %]</label>
+      <input name="storagestatus" id="storagestatus_onhand" class="radio" type="radio" value="onhand">
+      <label for="storagestatus_onhand">[% 'On Hand' | $T8 %]</label>
+      <input name="storagestatus" id="storagestatus_short" class="radio" type="radio" value="short">
+      <label for="storagestatus_short">[% 'Short' | $T8 %]</label>
+    </td>
   </tr>
  </table>
 
@@ -108,4 +120,3 @@
  [% L.hidden_tag('action', 'PartsPriceUpdate/dispatch') %]
  <input class="submit" type="submit" name="action_confirm_price_update" value="[% 'Continue' | $T8 %]">
 </form>
-

@@ -177,7 +177,7 @@ sub generate_report {
   $form->{title} = $locale->text('Articles');
 
   my %column_defs = (
-    'bin'                => { 'text' => $locale->text('Bin'), },
+    'bin_desc'           => { 'text' => $locale->text('Bin'), },
     'deliverydate'       => { 'text' => $locale->text('deliverydate'), },
     'consume'            => { 'text' => $locale->text('Consume'), },
     'description'        => { 'text' => $locale->text('Part Description'), },
@@ -220,8 +220,7 @@ sub generate_report {
     'type_and_classific' => { 'text' => $locale->text('Type'), },
     'projectnumber'      => { 'text' => $locale->text('Project Number'), },
     'projectdescription' => { 'text' => $locale->text('Project Description'), },
-    'warehousedescription' => { 'text' => $locale->text('Warehouse'), },
-    'bindescription'       => { 'text' => $locale->text('Bin'), },
+    'warehouse_desc'     => { 'text' => $locale->text('Warehouse'), },
   );
 
   $revers     = $form->{revers};
@@ -290,7 +289,7 @@ sub generate_report {
     my $pg = SL::DB::PartsGroup->new(id => $form->{partsgroup_id})->load;
     $pg_name = $pg->{'partsgroup'};
   }
-  
+
   # get name of warehouse if id is given
   my $wh_name;
   if ($form->{warehouse_id}) {
@@ -341,7 +340,8 @@ sub generate_report {
     insertdateto   => $locale->text('Insert Date') . ": " . $locale->text('To (time)')  . " " . $locale->date(\%myconfig, $form->{insertdateto}, 1),
   );
 
-  my @itemstatus_keys = qw(active obsolete orphaned onhand short);
+  my @itemstatus_keys = qw(active obsolete orphaned);
+  my @storagestatus_keys = qw(onhand short);
   my @callback_keys   = qw(onorder ordered rfq quoted bought sold ondeliver delivered partnumber partsgroup partsgroup_id serialnumber description make model
                            partstypes_id warehouse warehouse_id bin bin_id customername customernumber intnotes
                            drawing microfiche l_soldtotal l_deliverydate transdatefrom transdateto insertdatefrom insertdateto ean shop all);
@@ -351,11 +351,20 @@ sub generate_report {
     next if ($form->{itemstatus} ne $_ && !$form->{$_});
     map { $form->{$_} = 'Y' } @{ $dependencies{$_} } if $dependencies{$_};
   }
+  for (@storagestatus_keys, @callback_keys) {
+    next if ($form->{storagestatus} ne $_ && !$form->{$_});
+    map { $form->{$_} = 'Y' } @{ $dependencies{$_} } if $dependencies{$_};
+  }
 
   # generate callback and optionstrings
   my @options;
   for my  $key (@itemstatus_keys) {
     next if ($form->{itemstatus} ne $key && !$form->{$key});
+    push @options, $optiontexts{$key};
+  }
+
+  for my  $key (@storagestatus_keys, @callback_keys) {
+    next if ($form->{storagestatus} ne $key && !$form->{$key});
     push @options, $optiontexts{$key};
   }
 
@@ -429,7 +438,7 @@ sub generate_report {
   }
   IC->all_parts(\%myconfig, \%$form);
 
-  my @columns = qw(make model customername customernumber
+  my @columns = qw(make model customername customernumber warehouse_desc bin_desc
     partnumber type_and_classific description notes partsgroup bin onhand rop soldtotal unit listprice
     linetotallistprice sellprice linetotalsellprice lastcost linetotallastcost
     priceupdate weight image drawing microfiche invnumber ordnumber quonumber donumber
@@ -485,10 +494,11 @@ sub generate_report {
     qw(l_subtotal l_linetotal searchitems itemstatus bom l_pricegroups insertdatefrom insertdateto),
     qw(l_type_and_classific classification_id),
     qw(warehouse_id bin_id l_subtotal l_linetotal searchitems
-       l_parttype
-       l_languages l_warehousedescription l_bindescription
+       l_parttype l_part l_service l_assembly l_assortment storagestatus
+       l_languages l_warehouse_desc l_bin_desc
        l_intnotes l_consume l_ordersize l_leadtime),
     @itemstatus_keys,
+    @storagestatus_keys,
     @callback_keys,
     map({ "cvar_$_->{name}" } @searchable_custom_variables),
     map({'cvar_'. $_->{name} .'_qtyop'} grep({$_->{type} eq 'number'} @searchable_custom_variables)),
@@ -498,7 +508,7 @@ sub generate_report {
   my $callback         = build_std_url('action=generate_report', grep { $form->{$_} } @hidden_variables);
 
   my @sort_full        = qw(partnumber description onhand soldtotal deliverydate insertdate shop make model customername customernumber);
-  my @sort_no_revers   = qw(partsgroup bin priceupdate invnumber ordnumber quonumber donumber name image drawing serialnumber);
+  my @sort_no_revers   = qw(partsgroup priceupdate invnumber ordnumber quonumber donumber name image drawing serialnumber warehouse_desc bin_desc);
 
   foreach my $col (@sort_full) {
     $column_defs{$col}->{link} = join '&', $callback, "sort=$col", map { "$_=" . E($form->{$_}) } qw(revers lastsort);
