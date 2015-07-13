@@ -618,7 +618,7 @@ sub generate_report {
       $row->{invnumber}{link} = build_std_url("script=$ref->{module}.pl", 'action=edit', 'type=invoice', 'id=' . E($ref->{trans_id}), 'callback') if ($ref->{invnumber});
     }
     # Delivery Order Link if empty
-    $row->{donumber}{link} = build_std_url("script=do.pl", 'action=edit', 'type=' . E($ref->{cv} eq 'vendor' ? 'purchase_' : 'sales_') . 'delivery_order', 'id=' . E($ref->{trans_id}), 'callback') if $ref->{donumber};
+    $row->{donumber}{link} = build_std_url("script=do.pl", 'action=edit', 'type=' . E($ref->{cv} eq 'vendor' ? 'purchase_' : 'sales_') . 'delivery_order', 'id=' . E($ref->{trans_id}), 'callback') if ($ref->{donumber} && (!$ref->{invnumber}));
 
     # set properties of images
     if ($ref->{image} && (lc $report->{options}->{output_format} eq 'html')) {
