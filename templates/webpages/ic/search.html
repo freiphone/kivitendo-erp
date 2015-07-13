@@ -136,35 +136,27 @@
        <td colspan="3">
         <table>
          <tr>
+          <td colspan="2"><hr size="1" noshade></td>
+         </tr>
+         <tr>
+           <td>[% 'Search in following documents' | $T8 %]</td>
+         </tr>
+         <tr>
           <td>
            <table>
             <tr>
-             <td id="no_assembly1">[%- L.checkbox_tag('bought', label=LxERP.t8('Bought')) %]</td>
-             <td>[%- L.checkbox_tag('sold', label=LxERP.t8('Sold')) %]</td>
+             <td id="no_assembly1">[%- L.checkbox_tag('bought', label=LxERP.t8('Purchase Invoices')) %]</td>
+             <td>[%- L.checkbox_tag('sold', label=LxERP.t8('Sales invoices')) %]</td>
             </tr>
 
             <tr>
-             <td colspan="2"><hr size="1" noshade></td>
+             <td id="no_assembly2">[%- L.checkbox_tag('ondeliver', label=LxERP.t8('Purchase Delivery Orders')) %]</td>
+             <td>[%- L.checkbox_tag('delivered', label=LxERP.t8('Sales Delivery Orders')) %]</td>
             </tr>
 
             <tr>
-             <td id="no_assembly2">[%- L.checkbox_tag('onorder', label=LxERP.t8('On Order')) %]</td>
-             <td>[%- L.checkbox_tag('ordered', label=LxERP.t8('Ordered')) %]</td>
-            </tr>
-
-            <tr>
-             <td colspan="2"><hr size="1" noshade></td>
-            </tr>
-
-            <tr>
-             [%- UNLESS is_assembly %]
-             <td>[%- L.checkbox_tag('ondeliver', label=LxERP.t8('Delivered')) %]</td>
-             [%- END %]
-             <td>[%- L.checkbox_tag('delivered', label=LxERP.t8('Delivered out')) %]</td>
-            </tr>
-
-            <tr>
-             <td colspan="2"><hr size="1" noshade></td>
+             <td id="no_assembly2">[%- L.checkbox_tag('onorder', label=LxERP.t8('Purchase Orders')) %]</td>
+             <td>[%- L.checkbox_tag('ordered', label=LxERP.t8('Sales Orders')) %]</td>
             </tr>
 
             <tr>
