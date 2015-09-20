@@ -27,6 +27,7 @@ __PACKAGE__->meta->add_relationships(
     type         => 'one to many',
     class        => 'SL::DB::Price',
     column_map   => { id => 'parts_id' },
+    manager_args => { with_objects => [ 'pricegroup' ] }
   },
   makemodels     => {
     type         => 'one to many',
@@ -37,6 +38,11 @@ __PACKAGE__->meta->add_relationships(
     type         => 'one to many',
     class        => 'SL::DB::Translation',
     column_map   => { id => 'parts_id' },
+  },
+  shop_parts     => {
+    type         => 'one to many',
+    class        => 'SL::DB::ShopPart',
+    column_map   => { id => 'part_id' },
   },
 );
 
