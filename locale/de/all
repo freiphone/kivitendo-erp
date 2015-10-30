@@ -763,6 +763,7 @@ $self->{texts} = {
   'Currently #1 delivery orders can be converted into invoices and printed.' => 'Momentan können #1 Lieferscheine in Rechnungen umgewandelt werden.',
   'Custom Variables'            => 'Benutzerdefinierte Variablen',
   'Custom variables for module' => 'Benutzerdefinierte Variablen für Modul',
+  'Customs tariff number'       => 'Zolltarifnummer',
   'Customer'                    => 'Kunde',
   'Customer (database ID)'      => 'Kunde (Datenbank-ID)',
   'Customer (name)'             => 'Kunde (Name)',

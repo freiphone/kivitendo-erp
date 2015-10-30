@@ -948,7 +948,7 @@ sub prepare_parts_for_printing {
 
   $sth->finish();
 
-  my @columns = qw(ean image microfiche drawing);
+  my @columns = qw(ean image microfiche drawing customs_tariff_number);
 
   $query      = qq|SELECT id, | . join(', ', @columns) . qq|
                    FROM parts
@@ -989,7 +989,7 @@ sub prepare_parts_for_printing {
     push @{ $template_arrays{part_type}         }, $prt->part_type;
     push @{ $template_arrays{part_abbreviation} }, $type_abbr;
     push @{ $template_arrays{type_and_classific}}, $type_abbr.$::request->presenter->classification_abbreviation($prt->classification_id);
-    push @{ $template_arrays{separate}  },  $::request->presenter->separate_abbreviation($prt->classification_id);
+    push @{ $template_arrays{separate}          },  $::request->presenter->separate_abbreviation($prt->classification_id);
   }
 
   $main::lxdebug->leave_sub();

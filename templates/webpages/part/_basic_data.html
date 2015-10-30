@@ -42,6 +42,10 @@
                <td>[% L.input_tag("part.ean", SELF.part.ean, size=40) %]</td>
              </tr>
              <tr>
+              <th align="right">[% 'Customs tariff number' | $T8 %]</th>
+              <td>[% L.input_tag("part.customs_tariff_number", SELF.part.customs_tariff_number, size=20, maxlength=11) %]</td>
+             </tr>
+             <tr>
               [%- IF SELF.all_partsgroups.size %]
               <th align="right">[% 'Partsgroup' | $T8 %]</th>
               <td>[%- L.select_tag('part.partsgroup_id', SELF.all_partsgroups, default=SELF.part.partsgroup_id, title_key='partsgroup', value_key='id', with_empty=1 style='width: 200px') %]</td>
@@ -276,4 +280,3 @@
     <td><hr size="3" noshade></td>
   </tr>
  </table>
-
