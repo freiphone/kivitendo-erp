@@ -878,6 +878,7 @@ sub init_assembly_items {
                                    bom         => $assembly_item->{bom},
                                    qty         => $::form->parse_amount(\%::myconfig, $assembly_item->{qty_as_number}),
                                    position    => $position,
+                                   notice      => $assembly_item->{notice},
                                   );
     push(@array, $ai);
   };

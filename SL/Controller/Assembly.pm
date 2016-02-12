@@ -262,17 +262,17 @@ sub prepare_report {
   my $report = SL::ReportGenerator->new(\%::myconfig, $::form);
   $self->{report} = $report;
 
-  my @columns = qw(pos level partn partt desc qty unit);
+  my @columns = qw(pos level notice partn partt desc qty unit);
 
-  #$::lxdebug->message(LXDebug->DEBUG2(),"wantlevel=".$self->wantlevel);
   my %column_defs = (
-    'pos' => { text => $locale->text('Position'), visible => 1, width => '10', },
-    'level' => { text => $locale->text('Level'), visible => ($self->wantlevel > 1 ? 1 : 0), width => '10', },
-    'partn' => { text => $locale->text('Part Number'),      visible => 1, },
-    'partt' => { text => $locale->text('Type'),             visible => 1, width => '10', },
-    'desc'  => { text => $locale->text('Part Description'), visible => 1, },
-    'qty'   => { text => $locale->text('Qty'),              visible => 1, },
-    'unit'  => { text => $locale->text('Unit'),             visible => 1, width => '10', },
+    'pos'    => { text => $locale->text('Position')        , visible => 1, width => '10', },
+    'level'  => { text => $locale->text('Level')           , visible => ($self->wantlevel > 1 ? 1 : 0), width => '10', },
+    'notice' => { text => $locale->text('Notice')          , visible => 1, },
+    'partn'  => { text => $locale->text('Part Number')     , visible => 1, },
+    'partt'  => { text => $locale->text('Type')            , visible => 1, width => '10', },
+    'desc'   => { text => $locale->text('Part Description'), visible => 1, },
+    'qty'    => { text => $locale->text('Qty')             , visible => 1, },
+    'unit'   => { text => $locale->text('Unit')            , visible => 1, width => '10', },
   );
 
   $title = $::locale->text($title);
@@ -396,7 +396,7 @@ The first tab is only for assemblies, the second also for parts and services
 
 All direct and indirect depending components of one assembly are listed.
 Ich row has the columns position, level, partnumber, part_type and part_classification,
-description, quantity and unit.
+description, notice, quantity and unit.
 
 The level started at level 1 for the direct used components, the level 2 and up to level 25 (as limit)
 are indirect components (childs form childs ...).

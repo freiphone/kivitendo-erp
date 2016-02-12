@@ -14,6 +14,7 @@ __PACKAGE__->meta->columns(
   id          => { type => 'integer', not_null => 1 },
   itime       => { type => 'timestamp', default => 'now()' },
   mtime       => { type => 'timestamp' },
+  notice      => { type => 'varchar', length => 75 },
   parts_id    => { type => 'integer', not_null => 1 },
   position    => { type => 'integer' },
   qty         => { type => 'float', scale => 4 },
