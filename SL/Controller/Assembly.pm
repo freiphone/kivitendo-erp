@@ -34,8 +34,13 @@ sub action_export_listcomponents {
   $main::lxdebug->enter_sub();
   if ($::form->{report_generator_output_format} eq 'HTML') {
     $self->redirect_back();
-  }
-  else {
+  } else {
+    # no font less than 10 pt
+    # better to implement with default "UserPreferences::Favorites"
+    if ($::form->{report_generator_pdf_options_font_size} &&
+        ($::form->{report_generator_pdf_options_font_size} * 1) < 10 ) {
+      $::form->{report_generator_pdf_options_font_size} = 10;
+    }
     $self->check_object_params();
     $self->action_ajax_listcomponents();
   }
@@ -88,9 +93,14 @@ sub action_export_listassemblies {
   my ($self) = @_;
   $main::lxdebug->enter_sub();
   if ($::form->{report_generator_output_format} eq 'HTML') {
-    $self->redirect_back();
-  }
-  else {
+      $self->redirect_back();
+  } else {
+    # no font less than 10 pt
+    # better to implement with default "UserPreferences::Favorites"
+    if ($::form->{report_generator_pdf_options_font_size} &&
+        ($::form->{report_generator_pdf_options_font_size} * 1) < 10 ) {
+      $::form->{report_generator_pdf_options_font_size} = 10;
+    }
     $self->check_object_params();
     $self->action_ajax_listassemblies();
   }
@@ -299,7 +309,11 @@ sub prepare_report {
     html_template => 'assembly/' . $target,
   );
   $report->set_options_from_form;
-
+  if ( $::form->{report_generator_output_format} eq 'PDF') {
+     $report->set_options(
+        top_info_text => $self->object->intnotes,
+     );
+  }
   # manual paginating
   # my $page = $::form->{page} || 1;
   # my $pages = {};
