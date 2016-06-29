@@ -318,6 +318,8 @@ sub generate_report {
     quoted        => $locale->text('Quoted'),
     bought        => $locale->text('Bought'),
     sold          => $locale->text('Sold'),
+    consumption   => $locale->text('Disposition by'). " " .$locale->text('consumption driven'),
+    demand        => $locale->text('Disposition by'). " " .$locale->text('demand driven'),
     transdatefrom => $locale->text('From')       . " " . $locale->date(\%myconfig, $form->{transdatefrom}, 1),
     transdateto   => $locale->text('To (time)')  . " " . $locale->date(\%myconfig, $form->{transdateto}, 1),
     partnumber    => $locale->text('Part Number')      . ": '$form->{partnumber}'",
@@ -368,6 +370,10 @@ sub generate_report {
   for my  $key (@storagestatus_keys, @callback_keys) {
     next if ($form->{storagestatus} ne $key && !$form->{$key});
     push @options, $optiontexts{$key};
+  }
+
+  if ( $form->{dispotype} ne '' ) {
+    push @options, $optiontexts{$form->{dispotype}};
   }
 
   # special case for lastcost

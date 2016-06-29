@@ -409,6 +409,10 @@ sub all_parts {
     push @bind_vars, $form->{classification_id};
   }
 
+  if ( $form->{dispotype} eq 'demand' || $form->{dispotype} eq 'consumption' ) {
+    push @where_tokens, "p.dispotype = '".$form->{dispotype}."'";
+  }
+
   for ($form->{itemstatus}) {
     push @where_tokens, 'p.id NOT IN
         (SELECT DISTINCT parts_id FROM invoice UNION

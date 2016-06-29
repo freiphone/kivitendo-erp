@@ -93,6 +93,14 @@
       <tr>
        <th align="right" nowrap>[% 'Shop article' | $T8 %]</th>
        <td>[% L.yes_no_tag('shop', shop, default='', with_empty=1, empty_title='---', style=style) %]</td>
+        <th align="right" nowrap>[% 'Disposition by' | $T8 %]</th>
+        <td>
+          <select name="dispotype" style='width:100px'>
+            <option value="">---</option>
+            <option value="consumption">[% 'consumption driven' | $T8 %]</option>
+            <option value="demand">[% 'demand driven' | $T8 %]</option>
+          </select>
+        </td>
       </tr>
 
       <tr>
