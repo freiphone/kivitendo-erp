@@ -43,7 +43,7 @@ sub grouped_record_list {
   my $output = '';
 
   $output .= _requirement_spec_list(       $self, $groups{requirement_specs},        %params) if $groups{requirement_specs};
-  $output .= _shop_order_list(             $self, $groups{shop_orders},               %params) if $groups{shop_orders};
+  $output .= _shop_order_list(             $self, $groups{shop_orders},              %params) if $groups{shop_orders};
   $output .= _sales_quotation_list(        $self, $groups{sales_quotations},         %params) if $groups{sales_quotations};
   $output .= _sales_order_list(            $self, $groups{sales_orders},             %params) if $groups{sales_orders};
   $output .= _sales_delivery_order_list(   $self, $groups{sales_delivery_orders},    %params) if $groups{sales_delivery_orders};
@@ -166,10 +166,9 @@ sub record_list {
 
 sub _group_records {
   my ($list) = @_;
-$main::lxdebug->dump(0, 'WH: GROUP_RECORDS: ',\@_);
   my %matchers = (
     requirement_specs        => sub { (ref($_[0]) eq 'SL::DB::RequirementSpec')                                         },
-    shop_orders              => sub { (ref($_[0]) eq 'SL::DB::ShopOrder')                                               },
+    shop_orders              => sub { (ref($_[0]) eq 'SL::DB::ShopOrder')       &&  $_[0]->id                           },
     sales_quotations         => sub { (ref($_[0]) eq 'SL::DB::Order')           &&  $_[0]->is_type('sales_quotation')   },
     sales_orders             => sub { (ref($_[0]) eq 'SL::DB::Order')           &&  $_[0]->is_type('sales_order')       },
     sales_delivery_orders    => sub { (ref($_[0]) eq 'SL::DB::DeliveryOrder')   &&  $_[0]->is_sales                     },
@@ -233,20 +232,16 @@ sub _requirement_spec_list {
 
 sub _shop_order_list {
   my ($self, $list, %params) = @_;
-$main::lxdebug->dump(0, 'WH: ORDER_LIST: ',\@_);
+
   return $self->record_list(
     $list,
     title   => $::locale->text('Shop Orders'),
     type    => 'shop_order',
     columns => [
-      [ $::locale->text('Shop Order Date'),         'order_date'                                                              ],
-      [ $::locale->text('Shop Order Number'),        sub { $self->shop_order($_[0], display => 'table-cell') }                 ],
-      [ $::locale->text('Transfer Date'),           'transfer_date'                                                            ],
-      #     [ $::locale->text('Customer'),                'customer'                                                                 ],
-      [ $::locale->text('Net amount'),              'netamount'                                                                ],
-      #[ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      #[ $::locale->text('Project'),                 'globalproject', ],
-      #[ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Shop Order Date'),         sub { $_[0]->order_date->to_kivitendo }                         ],
+      [ $::locale->text('Shop Order Number'),       sub { $self->shop_order($_[0], display => 'table-cell') }       ],
+      [ $::locale->text('Transfer Date'),           'transfer_date'                                                 ],
+      [ $::locale->text('Amount'),                  'amount'                                                        ],
     ],
     %params,
   );
@@ -260,13 +255,13 @@ sub _sales_quotation_list {
     title   => $::locale->text('Sales Quotations'),
     type    => 'sales_quotation',
     columns => [
-      [ $::locale->text('Quotation Date'),          'transdate'                                                                ],
-      [ $::locale->text('Quotation Number'),        sub { $self->sales_quotation($_[0], display => 'table-cell') }   ],
-      [ $::locale->text('Customer'),                'customer'                                                                 ],
-      [ $::locale->text('Net amount'),              'netamount'                                                                ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Quotation Date'),          'transdate'                                                     ],
+      [ $::locale->text('Quotation Number'),        sub { $self->sales_quotation($_[0], display => 'table-cell') }  ],
+      [ $::locale->text('Customer'),                'customer'                                                      ],
+      [ $::locale->text('Amount'),                  'amount'                                                        ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                       ],
+      [ $::locale->text('Project'),                 'globalproject',                                                ],
+      [ $::locale->text('Closed'),                  'closed'                                                        ],
     ],
     %params,
   );
@@ -280,13 +275,13 @@ sub _request_quotation_list {
     title   => $::locale->text('Request Quotations'),
     type    => 'request_quotation',
     columns => [
-      [ $::locale->text('Quotation Date'),          'transdate'                                                                ],
-      [ $::locale->text('Quotation Number'),        sub { $self->request_quotation($_[0], display => 'table-cell') }   ],
-      [ $::locale->text('Vendor'),                  'vendor'                                                                   ],
-      [ $::locale->text('Net amount'),              'netamount'                                                                ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Quotation Date'),          'transdate'                                                      ],
+      [ $::locale->text('Quotation Number'),        sub { $self->request_quotation($_[0], display => 'table-cell') } ],
+      [ $::locale->text('Vendor'),                  'vendor'                                                         ],
+      [ $::locale->text('Net amount'),              'netamount'                                                      ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                        ],
+      [ $::locale->text('Project'),                 'globalproject',                                                 ],
+      [ $::locale->text('Closed'),                  'closed'                                                         ],
     ],
     %params,
   );
@@ -300,14 +295,14 @@ sub _sales_order_list {
     title   => $::locale->text('Sales Orders'),
     type    => 'sales_order',
     columns => [
-      [ $::locale->text('Order Date'),              'transdate'                                                                ],
-      [ $::locale->text('Order Number'),            sub { $self->sales_order($_[0], display => 'table-cell') }   ],
-      [ $::locale->text('Quotation'),               'quonumber' ],
-      [ $::locale->text('Customer'),                'customer'                                                                 ],
-      [ $::locale->text('Net amount'),              'netamount'                                                                ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Order Date'),              'transdate'                                                      ],
+      [ $::locale->text('Order Number'),            sub { $self->sales_order($_[0], display => 'table-cell') }       ],
+      [ $::locale->text('Quotation'),               'quonumber'                                                      ],
+      [ $::locale->text('Customer'),                'customer'                                                       ],
+      [ $::locale->text('Amount'),                  'amount'                                                         ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                        ],
+      [ $::locale->text('Project'),                 'globalproject',                                                 ],
+      [ $::locale->text('Closed'),                  'closed'                                                         ],
     ],
     %params,
   );
@@ -321,14 +316,14 @@ sub _purchase_order_list {
     title   => $::locale->text('Purchase Orders'),
     type    => 'purchase_order',
     columns => [
-      [ $::locale->text('Order Date'),              'transdate'                                                                ],
+      [ $::locale->text('Order Date'),              'transdate'                                                     ],
       [ $::locale->text('Order Number'),            sub { $self->purchase_order($_[0], display => 'table-cell') }   ],
-      [ $::locale->text('Request for Quotation'),   'quonumber' ],
-      [ $::locale->text('Vendor'),                  'vendor'                                                                 ],
-      [ $::locale->text('Net amount'),              'netamount'                                                                ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Request for Quotation'),   'quonumber'                                                     ],
+      [ $::locale->text('Vendor'),                  'vendor'                                                        ],
+      [ $::locale->text('Net amount'),              'netamount'                                                     ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                       ],
+      [ $::locale->text('Project'),                 'globalproject',                                                ],
+      [ $::locale->text('Closed'),                  'closed'                                                        ],
     ],
     %params,
   );
@@ -342,14 +337,14 @@ sub _sales_delivery_order_list {
     title   => $::locale->text('Sales Delivery Orders'),
     type    => 'sales_delivery_order',
     columns => [
-      [ $::locale->text('Delivery Order Date'),     'transdate'                                                                ],
+      [ $::locale->text('Delivery Order Date'),     'transdate'                                                         ],
       [ $::locale->text('Delivery Order Number'),   sub { $self->sales_delivery_order($_[0], display => 'table-cell') } ],
-      [ $::locale->text('Order Number'),            'ordnumber' ],
-      [ $::locale->text('Customer'),                'customer'                                                                 ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Delivered'),               'delivered'                                                                ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Order Number'),            'ordnumber'                                                         ],
+      [ $::locale->text('Customer'),                'customer'                                                          ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                           ],
+      [ $::locale->text('Project'),                 'globalproject',                                                    ],
+      [ $::locale->text('Delivered'),               'delivered'                                                         ],
+      [ $::locale->text('Closed'),                  'closed'                                                            ],
     ],
     %params,
   );
@@ -363,14 +358,14 @@ sub _purchase_delivery_order_list {
     title   => $::locale->text('Purchase Delivery Orders'),
     type    => 'purchase_delivery_order',
     columns => [
-      [ $::locale->text('Delivery Order Date'),     'transdate'                                                                ],
+      [ $::locale->text('Delivery Order Date'),     'transdate'                                                            ],
       [ $::locale->text('Delivery Order Number'),   sub { $self->purchase_delivery_order($_[0], display => 'table-cell') } ],
-      [ $::locale->text('Order Number'),            'ordnumber' ],
-      [ $::locale->text('Vendor'),                  'vendor'                                                                 ],
-      [ $::locale->text('Transaction description'), 'transaction_description'                                                  ],
-      [ $::locale->text('Project'),                 'globalproject', ],
-      [ $::locale->text('Delivered'),               'delivered'                                                                ],
-      [ $::locale->text('Closed'),                  'closed'                                                                   ],
+      [ $::locale->text('Order Number'),            'ordnumber'                                                            ],
+      [ $::locale->text('Vendor'),                  'vendor'                                                               ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                              ],
+      [ $::locale->text('Project'),                 'globalproject',                                                       ],
+      [ $::locale->text('Delivered'),               'delivered'                                                            ],
+      [ $::locale->text('Closed'),                  'closed'                                                               ],
     ],
     %params,
   );
@@ -384,15 +379,15 @@ sub _sales_invoice_list {
     title   => $::locale->text('Sales Invoices'),
     type    => 'sales_invoice',
     columns => [
-      [ $::locale->text('Invoice Date'),            'transdate'               ],
-      [ $::locale->text('Type'),                    sub { $_[0]->displayable_type } ],
+      [ $::locale->text('Invoice Date'),            'transdate'                                                  ],
+      [ $::locale->text('Type'),                    sub { $_[0]->displayable_type }                              ],
       [ $::locale->text('Invoice Number'),          sub { $self->sales_invoice($_[0], display => 'table-cell') } ],
-      [ $::locale->text('Quotation Number'),        'quonumber' ],
-      [ $::locale->text('Order Number'),            'ordnumber' ],
-      [ $::locale->text('Customer'),                'customer'                ],
-      [ $::locale->text('Net amount'),              'netamount'               ],
-      [ $::locale->text('Paid'),                    'paid'                    ],
-      [ $::locale->text('Transaction description'), 'transaction_description' ],
+      [ $::locale->text('Quotation Number'),        'quonumber'                                                  ],
+      [ $::locale->text('Order Number'),            'ordnumber'                                                  ],
+      [ $::locale->text('Customer'),                'customer'                                                   ],
+      [ $::locale->text('Amount'),                  'amount'                                                     ],
+      [ $::locale->text('Paid'),                    'paid'                                                       ],
+      [ $::locale->text('Transaction description'), 'transaction_description'                                    ],
     ],
     %params,
   );
