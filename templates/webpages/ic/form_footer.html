@@ -1,4 +1,3 @@
-<!-- TMP -->
 [%- USE T8 %]
 [%- USE HTML %]
 [%- USE LxERP %]
@@ -31,6 +30,9 @@
 
 [%- IF LANGUAGES.size %]
  [% PROCESS 'ic/tabs/_edit_translations.html' %]
+[%- END %]
+[%- IF shop %]
+ [% PROCESS 'ic/tabs/_shop.html' %]
 [%- END %]
 
 [%- IF id %]
