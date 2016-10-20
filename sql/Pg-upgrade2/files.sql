@@ -1,7 +1,7 @@
 -- @tag: files
 -- @description: Tabelle für Files
 -- @charset: UTF-8
--- @depends: release_3_3_0
+-- @depends: release_3_4_1 shops
 -- @ignore: 0
 
 CREATE TABLE files(
