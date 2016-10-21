@@ -2217,7 +2217,6 @@ $self->{texts} = {
   'Private Phone'               => 'Privates Tel.',
   'Problem'                     => 'Problem',
   'Produce Assembly'            => 'Erzeugnis fertigen',
-  'Producer'                    => 'Anbauer',
   'Productivity'                => 'Produktivität',
   'Profit determination'        => 'Gewinnermittlung',
   'Proforma Invoice'            => 'Proformarechnung',
