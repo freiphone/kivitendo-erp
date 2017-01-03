@@ -222,8 +222,9 @@ sub all_parts {
      transdate    => 'apoe.', trans_id     => 'ioi.',
      module       => 'apoe.', name         => 'cv.',
      donumber     => 'apoe.',
-     ordnumber    => 'apoe.', make         => 'mm.',
+     ordnumber    => 'apoe.', make         => 'mv.',
      quonumber    => 'apoe.', model        => 'mm.',
+     customername => 'cu.'  , customernumber => 'cp.',
      invnumber    => 'apoe.', partsgroup   => 'pg.',
      lastcost     => 'p.',  , soldtotal    => ' ',
      factor       => 'pfac.', projectnumber => 'pj.',
@@ -257,11 +258,27 @@ sub all_parts {
     'ioi.ioi'      => 'ioi',
     'projectdescription' => 'projectdescription',
     'insertdate'   => 'insertdate',
+    'factor'               => 'price_factor',
+    'SUM(ioi.qty)'         => 'soldtotal',
+    'ioi.id'               => 'ioi_id',
+    'ioi.ioi'              => 'ioi',
+    'projectdescription'   => 'projectdescription',
+    'warehousedescription' => 'warehousedescription',
+    'bindescription'       => 'bindescription',
+    'customername'         => 'customername',
+    'customernumber'       => 'customernumber',
+    'make'                 => 'make',
   );
 
   my %real_column = (
-    projectdescription => 'description',
-    insertdate         => 'itime::DATE',
+    projectdescription     => 'description',
+    projectdescription     => 'description',
+    warehousedescription   => 'description',
+    bindescription         => 'description',
+    customername           => 'name',
+    customernumber         => 'customer_partnumber',
+    make                   => 'name',
+    insertdate             => 'itime::DATE',
   );
 
   if ($form->{l_assembly} && $form->{l_lastcost}) {

@@ -182,6 +182,10 @@ sub generate_report {
     'listprice'          => { 'text' => $locale->text('List Price'), },
     'microfiche'         => { 'text' => $locale->text('Microfiche'), },
     'name'               => { 'text' => $locale->text('Name'), },
+    'model'              => { 'text' => $locale->text('Model'), },
+    'make'               => { 'text' => $locale->text('Vendor'), },
+    'customernumber'     => { 'text' => $locale->text('Customer Part Number'), },
+    'customername'       => { 'text' => $locale->text('Customer'), },
     'donumber'           => { 'text' => $locale->text('Delivery Order Number'), },
     'onhand'             => { 'text' => $locale->text('Stocked Qty'), },
     'ordnumber'          => { 'text' => $locale->text('Order Number'), },
@@ -234,6 +238,17 @@ sub generate_report {
   # refered to as ledgerchecks
   $form->{ledgerchecks} = 'Y' if (   $form->{bought} || $form->{sold} || $form->{ondeliver} || $form->{delivered} || $form->{onorder}
                                   || $form->{ordered} || $form->{rfq} || $form->{quoted});
+
+  # if search model, set column visible
+  if ($form->{model} || $form->{make}) {
+    $form->{l_model} = 'Y';
+    $form->{l_make} = 'Y';
+  }
+
+  if ($form->{customername} || $form->{customernumber}) {
+    $form->{l_customernumber} = 'Y';
+    $form->{l_customername} = 'Y';
+  }
 
   # if something should be activated if something else is active, enter it here
   my %dependencies = (
@@ -303,7 +318,7 @@ sub generate_report {
 
   # generate callback and optionstrings
   my @options;
-  for my  $key (@itemstatus_keys, @callback_keys) {
+  for my  $key (@itemstatus_keys) {
     next if ($form->{itemstatus} ne $key && !$form->{$key});
     push @options, $optiontexts{$key};
   }
@@ -377,7 +392,7 @@ sub generate_report {
   }
   IC->all_parts(\%myconfig, \%$form);
 
-  my @columns = qw(
+  my @columns = qw(make model customername customernumber
     partnumber type_and_classific description notes partsgroup bin onhand rop soldtotal unit listprice
     linetotallistprice sellprice linetotalsellprice lastcost linetotallastcost
     priceupdate weight image drawing microfiche invnumber ordnumber quonumber donumber
@@ -421,7 +436,7 @@ sub generate_report {
 
   my $callback         = build_std_url('action=generate_report', grep { $form->{$_} } @hidden_variables);
 
-  my @sort_full        = qw(partnumber description onhand soldtotal deliverydate insertdate shop);
+  my @sort_full        = qw(partnumber description onhand soldtotal deliverydate insertdate shop make model customername customernumber);
   my @sort_no_revers   = qw(partsgroup bin priceupdate invnumber ordnumber quonumber donumber name image drawing serialnumber);
 
   foreach my $col (@sort_full) {
