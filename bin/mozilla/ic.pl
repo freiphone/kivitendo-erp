@@ -151,6 +151,8 @@ sub top100 {
 #  l_linetotal l_priceupdate l_bin l_rop l_weight l_image l_drawing l_microfiche
 #  l_partsgroup l_subtotal l_soldtotal l_deliverydate l_pricegroups
 #
+#  OD l_intnotes l_consume l_ordersize l_leadtime
+#
 # hiddens:
 #  nextsub revers lastsort sort ndxs_counter
 #
@@ -168,18 +170,21 @@ sub generate_report {
   my %column_defs = (
     'bin'                => { 'text' => $locale->text('Bin'), },
     'deliverydate'       => { 'text' => $locale->text('deliverydate'), },
+    'consume'            => { 'text' => $locale->text('Consume'), },
     'description'        => { 'text' => $locale->text('Part Description'), },
     'notes'              => { 'text' => $locale->text('Notes'), },
     'drawing'            => { 'text' => $locale->text('Drawing'), },
     'ean'                => { 'text' => $locale->text('EAN'), },
     'image'              => { 'text' => $locale->text('Image'), },
     'insertdate'         => { 'text' => $locale->text('Insert Date'), },
+    'intnotes'           => { 'text' => $locale->text('Internal Notes'), },
     'invnumber'          => { 'text' => $locale->text('Invoice Number'), },
     'lastcost'           => { 'text' => $locale->text('Last Cost'), },
     'linetotallastcost'  => { 'text' => $locale->text('Extended'), },
     'linetotallistprice' => { 'text' => $locale->text('Extended'), },
     'linetotalsellprice' => { 'text' => $locale->text('Extended'), },
     'listprice'          => { 'text' => $locale->text('List Price'), },
+    'leadtime'           => { 'text' => $locale->text('Lead Time'), },
     'microfiche'         => { 'text' => $locale->text('Microfiche'), },
     'name'               => { 'text' => $locale->text('Name'), },
     'model'              => { 'text' => $locale->text('Model'), },
@@ -189,6 +194,7 @@ sub generate_report {
     'donumber'           => { 'text' => $locale->text('Delivery Order Number'), },
     'onhand'             => { 'text' => $locale->text('Stocked Qty'), },
     'ordnumber'          => { 'text' => $locale->text('Order Number'), },
+    'ordersize'          => { 'text' => $locale->text('Order Size'), },
     'partnumber'         => { 'text' => $locale->text('Part Number'), },
     'partsgroup'         => { 'text' => $locale->text('Partsgroup'), },
     'priceupdate'        => { 'text' => $locale->text('Updated'), },
@@ -399,6 +405,7 @@ sub generate_report {
     priceupdate weight image drawing microfiche invnumber ordnumber quonumber donumber
     transdate name serialnumber deliverydate ean projectnumber projectdescription
     insertdate shop
+    intnotes consume ordersize leadtime
   );
 
   my $pricegroups = SL::DB::Manager::Pricegroup->get_all_sorted;
@@ -423,11 +430,16 @@ sub generate_report {
 
   %column_defs = (%column_defs, %column_defs_cvars, %column_defs_pricegroups);
   map { $column_defs{$_}->{visible} ||= $form->{"l_$_"} ? 1 : 0 } @columns;
-  map { $column_defs{$_}->{align}   = 'right' } qw(onhand sellprice listprice lastcost linetotalsellprice linetotallastcost linetotallistprice rop weight soldtotal shop), @pricegroup_columns;
+  map { $column_defs{$_}->{align}   = 'right' } qw(onhand sellprice listprice lastcost linetotalsellprice linetotallastcost linetotallistprice
+       rop weight shop soldtotal consume ordersize leadtime), @pricegroup_columns;
 
   my @hidden_variables = (
     qw(l_subtotal l_linetotal searchitems itemstatus bom l_pricegroups insertdatefrom insertdateto),
     qw(l_type_and_classific classification_id),
+    qw(warehouse_id bin_id l_subtotal l_linetotal searchitems
+       l_parttype
+       l_languages l_warehousedescription l_bindescription
+       l_intnotes l_consume l_ordersize l_leadtime),
     @itemstatus_keys,
     @callback_keys,
     map({ "cvar_$_->{name}" } @searchable_custom_variables),
@@ -449,13 +461,6 @@ sub generate_report {
   $form->{callback} = join '&', ($callback, map { "${_}=" . E($form->{$_}) } qw(sort revers));
 
   my $report = SL::ReportGenerator->new(\%myconfig, $form);
-
-  my %attachment_basenames = (
-    'part'     => $locale->text('part_list'),
-    'service'  => $locale->text('service_list'),
-    'assembly' => $locale->text('assembly_list'),
-    'article'  => $locale->text('article_list'),
-  );
 
   $report->set_options('raw_top_info_text'     => $form->parse_html_template('ic/generate_report_top', { options => \@options }),
                        'raw_bottom_info_text'  => $form->parse_html_template('ic/generate_report_bottom' ,
@@ -520,7 +525,7 @@ sub generate_report {
     $row->{partnumber}->{link}  = $edit_link;
     $row->{description}->{link} = $edit_link;
 
-    foreach (qw(sellprice listprice lastcost)) {
+    foreach (qw(sellprice listprice lastcost consume rop ordersize)) {
       $row->{$_}{data}            = $form->format_amount(\%myconfig, $ref->{$_}, 2);
       $row->{"linetotal$_"}{data} = $form->format_amount(\%myconfig, $ref->{onhand} * $ref->{$_}, 2);
     }
