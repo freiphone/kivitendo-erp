@@ -21,6 +21,7 @@
     [%- END %]
     [%- IF SELF.part.is_assembly %]
     <li><a href="#assembly_tab">[% 'Assembly items' | $T8 %]</a></li>
+    <li><a href="controller.pl?action=Assembly/ajax_listcomponents&object_id=[% HTML.url(SELF.part.id) %][% callback_url %]">[% 'Structural Parts List' | $T8 %]</a></li>
     [%- END %]
     [%- IF SELF.part.id %]
     [%- IF INSTANCE_CONF.get_doc_storage %]
@@ -32,6 +33,7 @@
     <li><a href="#translations_tab">[% 'Translations' | $T8 %]</a></li>
     [% END %]
     [%- IF SELF.part.id %]
+    <li><a href="controller.pl?action=Assembly/ajax_listassemblies&object_id=[% HTML.url(SELF.part.id) %][% callback_url %]">[% 'Used In Assemblies' | $T8 %]</a></li>
     <li><a href="#sales_price_information">[% 'Price information' | $T8 %]</a></li>
     [%- END %]
     [%- IF SELF.part.id  %]

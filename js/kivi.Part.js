@@ -287,6 +287,39 @@ namespace('kivi.Part', function(ns) {
     document.getElementById("is_assembly").style.visibility  = la.checked ?'visible':'hidden';
   };
 
+  ns.inline_report = function(target, source, data){
+    $.ajax({
+      url:        source,
+      success:    function (rsp) {
+        $(target).html(rsp);
+        $(target).find('.paginate').find('a').click(function(event){ ns.redirect_event(event, target) });
+        $(target).find('a.report-generator-header-link').click(function(event){ ns.redirect_event(event, target) });
+      },
+      data:       data,
+    });
+  };
+
+  ns.redirect_event = function(event, target){
+    event.preventDefault();
+    ns.inline_report(target, event.target + '', {});
+  };
+
+  ns.assemblyMaxlevelChanged = function(value,partid,direction) {
+    var elem = document.getElementsByName("report_generator_hidden_maxlevel");
+    if ( elem && elem[0] ) {
+      elem[0].value = value;
+    }
+    if ( direction == 1 ) {
+      ns.inline_report('#listcomponents', 'controller.pl',
+                       { action: 'Assembly/ajax_listcomponents', maxlevel: value, object_id: partid, inline: 1 });
+    }
+    else {
+      ns.inline_report('#listassemblies', 'controller.pl',
+                       { action: 'Assembly/ajax_listassemblies', maxlevel: value, object_id: partid, inline: 1 });
+    }
+    return false;
+  };
+
   $(function(){
 
     // assortment

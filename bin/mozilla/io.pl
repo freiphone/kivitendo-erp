@@ -557,13 +557,42 @@ sub item_selected {
     foreach (grep(/^select_qty_/, keys(%{ $form }))) {
       next unless $form->{$_};
       $_ =~ /^select_qty_(\d+)/;
-      $form->{"id_${row}"}  = $1;
+      my $partid = $1;
+      $form->{"id_${row}"}  = $partid;
       $form->{"qty_${row}"} = $form->{$_};
       $row++;
+      $form->{new_assrow_added} = 1 if $form->{id};
+      foreach (grep(/^select_optqty_${partid}_/, keys(%{ $form }))) {
+        next unless $form->{$_};
+        $_ =~ /^select_optqty_${partid}_(\d+)/;
+        $form->{"id_${row}"}  = $1;
+        $form->{"qty_${row}"} = $form->{$_};
+        #$main::lxdebug->message(LXDebug->DEBUG2(),"optional $row id=". $form->{"id_${row}"}." qty=".$form->{"qty_${row}"});
+        $row++;
+      }
+    }
+    if ( $row == $curr_row ) {
+        # now item is set
+        $form->{"partnumber_${curr_row}"} = '';
+        $form->{"description_${curr_row}"}= '';
+        $form->{"qty_${curr_row}"}= '';
+        $form->{ $row_key }-- ;
+        &display_form;
+        $main::lxdebug->leave_sub();
+        return;
     }
   } else {
     $form->{"id_${row}"} = delete($form->{select_item_id}) || croak 'Missing item selection ID';
     $row++;
+    $form->{new_assrow_added} = 1 if $form->{id};
+    foreach (grep(/^select_item_id_/, keys(%{ $form }))) {
+      next unless $form->{$_};
+      $_ =~ /^select_item_id_(\d+)/;
+      $form->{"id_${row}"}  = $1;
+      $form->{"qty_${row}"} = $form->{$_};
+      #$main::lxdebug->message(LXDebug->DEBUG2(),"optional $row id=". $form->{"id_${row}"}." qty=".$form->{"qty_${row}"});
+      $row++;
+    }
   }
 
   map { $form->{$_} = $form->parse_amount(\%myconfig, $form->{$_}) }

@@ -450,7 +450,12 @@ sub generate_pdf_content {
   my $font_encoding   = 'UTF-8';
 
   foreach my $name (@visible_columns) {
-    push @column_props, { 'justify' => $self->{columns}->{$name}->{align} eq 'right' ? 'right' : 'left' };
+    my %column_vals = ();
+    $column_vals{justify}    = 'right' if $self->{columns}->{$name}->{align} eq 'right';
+    $column_vals{max_w}      = $self->{columns}->{$name}->{width} if $self->{columns}->{$name}->{width};
+    $column_vals{min_w}      = $self->{columns}->{$name}->{width} if $self->{columns}->{$name}->{width};
+    $column_vals{font_color} = $self->{columns}->{$name}->{color} if $self->{columns}->{$name}->{color};
+    push @column_props, \%column_vals;
   }
 
   if (!$self->{custom_headers}) {

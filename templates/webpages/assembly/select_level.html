@@ -1,0 +1,9 @@
+[%- USE T8 %]
+<form id="form_maxlevel" >
+[% 'Displayable level depth:' | $T8 %]
+<select name="display_maxlevel" id="display_maxlevel" onchange="kivi.Part.assemblyMaxlevelChanged(this.value,[%SELF.object_id %],[%SELF.direction %]);">
+[% FOREACH row = SELF.levels %]
+<option value='[% row %]'[% IF row == SELF.wantlevel %] selected[% END %]>[% row %]</option>
+[% END %]
+</select>
+</form>

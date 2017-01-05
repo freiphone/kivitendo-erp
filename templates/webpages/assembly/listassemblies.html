@@ -1,0 +1,9 @@
+[%- UNLESS FORM.inline %]
+<div id="reportcomponents">
+[%- END %]
+<div id="listassemblies">
+[%- PROCESS 'report_generator/html_report.html'  %]
+</div>
+[%- UNLESS FORM.inline %]
+</div>
+[%- END %]
