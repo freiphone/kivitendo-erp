@@ -14,6 +14,7 @@ __PACKAGE__->meta->columns(
   buchungsgruppen_id => { type => 'integer' },
   classification_id  => { type => 'integer', default => '0' },
   consume            => { type => 'numeric', default => '0', precision => 15, scale => 5 },
+  customer_exclusive => { type => 'boolean', default => 'false' },
   description        => { type => 'text' },
   drawing            => { type => 'text' },
   ean                => { type => 'text' },
@@ -47,6 +48,7 @@ __PACKAGE__->meta->columns(
   stockable          => { type => 'boolean', default => 'false' },
   unit               => { type => 'varchar', length => 20, not_null => 1 },
   ve                 => { type => 'integer' },
+  vendor_exclusive   => { type => 'boolean', default => 'false' },
   warehouse_id       => { type => 'integer' },
   weight             => { type => 'float', precision => 4, scale => 4 },
 );

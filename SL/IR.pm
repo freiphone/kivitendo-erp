@@ -57,6 +57,7 @@ use strict;
 use constant PCLASS_OK             =>   0;
 use constant PCLASS_NOTFORSALE     =>   1;
 use constant PCLASS_NOTFORPURCHASE =>   2;
+use constant PCLASS_IS_EXCLUSIVE   =>   3;
 
 sub post_invoice {
   my ($self, $myconfig, $form, $provided_dbh, $payments_only) = @_;
@@ -1254,6 +1255,7 @@ sub retrieve_item {
          p.price_factor_id,
          p.ean,
          p.classification_id,
+         p.vendor_exclusive,
 
          pfac.factor AS price_factor,
 
@@ -1383,6 +1385,9 @@ sub retrieve_item {
     $stw->finish();
     chop $ref->{taxaccounts};
 
+    my $notexclusive = 1;
+    $notexclusive = 0 if $ref->{vendor_exclusive};
+
     ## vendor_id ggf beim ersten mal noch nicht gesetzt nur vendor <name>--<id>
     ($form->{vendor}, $form->{vendor_id}) = split(/--/, $form->{vendor}) if  ! $form->{vendor_id};
 
@@ -1392,11 +1397,13 @@ sub retrieve_item {
       if ( $mm ) {
         $::lxdebug->message(LXDebug->DEBUG2(), "mm id=".$mm->{id}." price=".$mm->{lastcost});
         $ref->{lastcost} = $mm->{lastcost};
+        $notexclusive = 1;
       }
     }
 
     $ref->{onhand} *= 1;
-    push @{ $form->{item_list} }, $ref;
+    $has_wrong_pclass = PCLASS_IS_EXCLUSIVE if !$notexclusive ;
+    push @{ $form->{item_list} }, $ref if $notexclusive ;
 
   }
 

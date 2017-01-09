@@ -63,6 +63,7 @@ use strict;
 use constant PCLASS_OK             =>   0;
 use constant PCLASS_NOTFORSALE     =>   1;
 use constant PCLASS_NOTFORPURCHASE =>   2;
+use constant PCLASS_IS_EXCLUSIVE   =>   3;
 
 sub invoice_details {
   $main::lxdebug->enter_sub();
@@ -2294,6 +2295,7 @@ sub retrieve_item {
          date($transdate) - c3.valid_from AS expense_valid,
 
          p.unit, p.part_type, p.onhand,
+         p.customer_exclusive,
          p.notes AS partnotes, p.notes AS longdescription,
          p.not_discountable, p.formel, p.payment_id AS part_payment_id,
          p.price_factor_id, p.weight,
@@ -2427,6 +2429,8 @@ sub retrieve_item {
         last;
       }
     }
+    my $notexclusive = 1;
+    $notexclusive = 0 if $ref->{customer_exclusive};
     ## customer_id ggf beim ersten mal noch nicht gesetzt nur customer <name>--<id>
     ($form->{customer}, $form->{customer_id}) = split(/--/, $form->{customer}) if  ! $form->{customer_id};
     if ( $form->{customer_id} ) {
@@ -2435,11 +2439,13 @@ sub retrieve_item {
         if ( $cprice ) {
             $::lxdebug->message(LXDebug->DEBUG2(), "cprice id=".$cprice->{id}." price=".$cprice->{price});
             $ref->{sellprice} = $cprice->{price};
+            $notexclusive = 1;
         }
     }
 
     $ref->{onhand} *= 1;
-    push @{ $form->{item_list} }, $ref;
+    $has_wrong_pclass = PCLASS_IS_EXCLUSIVE if !$notexclusive ;
+    push @{ $form->{item_list} }, $ref  if $notexclusive ;
   }
   $sth->finish;
   $_->[1]->finish for @translation_queries;
