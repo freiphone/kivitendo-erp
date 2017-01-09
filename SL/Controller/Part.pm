@@ -775,12 +775,13 @@ sub parse_form_makemodels {
     my $vendor = SL::DB::Manager::Vendor->find_by(id => $makemodel->{make}) || die "Can't find vendor from make";
 
     my $mm = SL::DB::MakeModel->new( # parts_id   => $self->part->id, # will be assigned by row add_makemodels
-                                     id         => $makemodel->{id},
-                                     make       => $makemodel->{make},
-                                     model      => $makemodel->{model} || '',
-                                     lastcost   => $::form->parse_amount(\%::myconfig, $makemodel->{lastcost_as_number}),
-                                     sortorder  => $position,
-                                   );
+                            id                => $makemodel->{id},
+                            make              => $makemodel->{make},
+                            model             => $makemodel->{model} || '',
+                            model_description => $makemodel->{model_description} || '',
+                            lastcost          => $::form->parse_amount(\%::myconfig, $makemodel->{lastcost_as_number}),
+                            sortorder         => $position,
+                           );
     if ($makemodels_map->{$mm->id} && !$makemodels_map->{$mm->id}->lastupdate && $makemodels_map->{$mm->id}->lastcost == 0 && $mm->lastcost == 0) {
       # lastupdate isn't set, original lastcost is 0 and new lastcost is 0
       # don't change lastupdate
@@ -815,12 +816,13 @@ sub parse_form_customerprices {
     my $customer = SL::DB::Manager::Customer->find_by(id => $customerprice->{customer_id}) || die "Can't find customer from id";
 
     my $cu = SL::DB::PartCustomerPrice->new( # parts_id   => $self->part->id, # will be assigned by row add_customerprices
-                                     id                   => $customerprice->{id},
-                                     customer_id          => $customerprice->{customer_id},
-                                     customer_partnumber  => $customerprice->{customer_partnumber} || '',
-                                     price                => $::form->parse_amount(\%::myconfig, $customerprice->{price_as_number}),
-                                     sortorder            => $position,
-                                   );
+                                id                       => $customerprice->{id},
+                                customer_id              => $customerprice->{customer_id},
+                                customer_partnumber      => $customerprice->{customer_partnumber} || '',
+                                customer_partdescription => $customerprice->{customer_partdescription} || '',
+                                price                    => $::form->parse_amount(\%::myconfig, $customerprice->{price_as_number}),
+                                sortorder                => $position,
+                               );
     if ($customerprices_map->{$cu->id} && !$customerprices_map->{$cu->id}->lastupdate && $customerprices_map->{$cu->id}->price == 0 && $cu->price == 0) {
       # lastupdate isn't set, original price is 0 and new lastcost is 0
       # don't change lastupdate
@@ -927,12 +929,13 @@ sub init_makemodels {
     next unless $makemodel->{make};
     $position++;
     my $mm = SL::DB::MakeModel->new( # parts_id   => $self->part->id, # will be assigned by row add_makemodels
-                                    id        => $makemodel->{id},
-                                    make      => $makemodel->{make},
-                                    model     => $makemodel->{model} || '',
-                                    lastcost  => $::form->parse_amount(\%::myconfig, $makemodel->{lastcost_as_number} || 0),
-                                    sortorder => $position,
-                                  ) or die "Can't create mm";
+                            id                => $makemodel->{id},
+                            make              => $makemodel->{make},
+                            model             => $makemodel->{model} || '',
+                            model_description => $makemodel->{model_description} || '',
+                            lastcost          => $::form->parse_amount(\%::myconfig, $makemodel->{lastcost_as_number} || 0),
+                            sortorder         => $position,
+                           ) or die "Can't create mm";
     # $mm->id($makemodel->{id}) if $makemodel->{id};
     push(@makemodel_array, $mm);
   };
@@ -950,12 +953,13 @@ sub init_customerprices {
     next unless $customerprice->{customer_id};
     $position++;
     my $cu = SL::DB::PartCustomerPrice->new( # parts_id   => $self->part->id, # will be assigned by row add_customerprices
-                                    id                  => $customerprice->{id},
-                                    customer_partnumber => $customerprice->{customer_partnumber},
-                                    customer_id         => $customerprice->{customer_id} || '',
-                                    price               => $::form->parse_amount(\%::myconfig, $customerprice->{price_as_number} || 0),
-                                    sortorder           => $position,
-                                  ) or die "Can't create cu";
+                                id                       => $customerprice->{id},
+                                customer_id              => $customerprice->{customer_id},
+                                customer_partnumber      => $customerprice->{customer_partnumber} || '',
+                                customer_partdescription => $customerprice->{customer_partdescription} || '',
+                                price                    => $::form->parse_amount(\%::myconfig, $customerprice->{price_as_number} || 0),
+                                sortorder                => $position,
+                               ) or die "Can't create cu";
     # $cu->id($customerprice->{id}) if $customerprice->{id};
     push(@customerprice_array, $cu);
   };
