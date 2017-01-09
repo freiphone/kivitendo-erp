@@ -4,6 +4,7 @@ use strict;
 use SL::PriceSource::Pricegroup;
 use SL::PriceSource::MasterData;
 use SL::PriceSource::Makemodel;
+use SL::PriceSource::CustomPrice;
 use SL::PriceSource::Customer;
 use SL::PriceSource::Vendor;
 use SL::PriceSource::Business;
@@ -15,6 +16,7 @@ my %price_sources_by_name = (
   vendor_discount   => 'SL::PriceSource::Vendor',
   pricegroup        => 'SL::PriceSource::Pricegroup',
   makemodel         => 'SL::PriceSource::Makemodel',
+  customprice       => 'SL::PriceSource::CustomPrice',
   business          => 'SL::PriceSource::Business',
   price_rules       => 'SL::PriceSource::PriceRules',
 );
@@ -25,6 +27,7 @@ my @price_sources_order = qw(
   vendor_discount
   pricegroup
   makemodel
+  customprice
   business
   price_rules
 );

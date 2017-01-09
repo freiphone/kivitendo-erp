@@ -155,6 +155,7 @@ my %kivitendo_package_names = (
   parts                          => 'part',
   partsgroup                     => 'parts_group',
   part_classifications           => 'PartClassification',
+  part_customer_prices           => 'part_customer_prices',
   parts_price_history            => 'PartsPriceHistory',
   payment_terms                  => 'payment_term',
   periodic_invoices              => 'periodic_invoice',
