@@ -151,10 +151,21 @@
            <th align="left" nowrap>[% LxERP.format_amount(SELF.part.onhand) %] [% SELF.part.unit | html %]</th>
           </tr>
           <tr>
+           <th align="right" nowrap="true">[% 'Disposition by' | $T8 %]</th>
+           <td>
+             <select name="part.dispotype" class="dispo_changed" style='width:100px'>
+               <option value="consumption"[% IF SELF.part.dispotype == 'consumption' %] selected[% END %]>
+                 [% 'consumption driven' | $T8 %]</option>
+               <option value="demand"     [% IF SELF.part.dispotype == 'demand'      %] selected[% END %]>
+                 [% 'demand driven'      | $T8 %]</option>
+             </select>
+           </td>
+          </tr>
+          <tr>
            <th align="right" nowrap="true">[% 'Lead Time' | $T8 %]</th>
            <td>[% L.input_tag("part.leadtime_as_number", SELF.part.leadtime_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
           </tr>
-          <tr>
+          <tr class="filter_on_demand" [% IF dispotype == 'demand' %]style="display:none"[% END %]>
            <th align="right" nowrap="true">[% 'Consume' | $T8 %]</th>
            <td>[% L.input_tag("part.consume_as_number", SELF.part.consume_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
           </tr>
@@ -162,11 +173,11 @@
            <th align="right" nowrap="true">[% 'Order Size' | $T8 %]</th>
            <td>[% L.input_tag("part.ordersize_as_number", SELF.part.ordersize_as_number, size=10, class="numeric") %]</td>
           </tr>
-          <tr>
+          <tr class="filter_on_demand" [% IF dispotype == 'demand' %]style="display:none"[% END %]>
            <th align="right" nowrap="true">[% 'ROP' | $T8 %]</th>
            <td>[% L.input_tag("part.rop_as_number", SELF.part.rop_as_number, size=10, class="calc_reorder reformat_number numeric") %]</td>
           </tr>
-          <tr>
+          <tr class="filter_on_demand" [% IF dispotype == 'demand' %]style="display:none[% END %]">
            <th align="right" nowrap="true">[% 'Reorder Level' | $T8 %]</th>
            <td><div id="reorder_level" ></div></td>
           </tr>

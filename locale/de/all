@@ -971,6 +971,7 @@ $self->{texts} = {
   'Display file'                => 'Datei anzeigen',
   'Display options'             => 'Anzeigeoptionen',
   'Displayable level depth:'    => 'Maximale sichtbare Ebene:',
+  'Disposition by'              => 'Disposition nach',
   'Do not change the tax rate of taxkey 0.' => 'Ändern Sie nicht den Steuersatz vom Steuerschlüssel 0.',
   'Do not check for duplicates' => 'Nicht nach Dubletten suchen',
   'Do not link to a project.'   => 'Nicht mit einem Projekt verknüpfen.',

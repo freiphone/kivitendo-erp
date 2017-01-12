@@ -290,6 +290,11 @@ namespace('kivi.Part', function(ns) {
     $.post("controller.pl", { action: 'Part/warehouse_changed', warehouse_id: function(){ return $('#part_warehouse_id').val() } },   kivi.eval_json_result);
   }
 
+  ns.dispoChanged = function(value) {
+    if ( value == 'demand' ) { $('.filter_on_demand').hide(); } else { $('.filter_on_demand').show();}
+    return false;
+  }
+
   ns.calcReorderLevel = function() {
     var leadtime = Math.floor(Number(kivi.parse_amount($('#part_leadtime_as_number').val()))) + 7 ;
     var consume  = Number(kivi.parse_amount($('#part_consume_as_number').val())) / 30.0 ;
@@ -360,6 +365,10 @@ namespace('kivi.Part', function(ns) {
 
     $('#ic5').on('focusout', '.calc_reorder', function(event) {
        ns.calcReorderLevel();
+    });
+
+    $('#ic5').on('change', '.dispo_changed', function(event) {
+      ns.dispoChanged(event.currentTarget.value);
     });
 
     $('.calc_reorder').keydown(function(event) {

@@ -16,6 +16,7 @@ __PACKAGE__->meta->columns(
   consume            => { type => 'numeric', default => '0', precision => 15, scale => 5 },
   customer_exclusive => { type => 'boolean', default => 'false' },
   description        => { type => 'text' },
+  dispotype          => { type => 'text', default => 'consumption' },
   drawing            => { type => 'text' },
   ean                => { type => 'text' },
   formel             => { type => 'text' },
