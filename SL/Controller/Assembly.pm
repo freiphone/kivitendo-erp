@@ -332,7 +332,6 @@ sub link_to {
   my $cb       = '';
   my $tabindex = 1 + $listassemblies;
 
-  #  $tabindex++ if $::instance_conf->get_doc_attachments;
   if ($::form->{callback}) {
     $cb = '&callback=' . $::form->escape($::form->{callback});
   }
