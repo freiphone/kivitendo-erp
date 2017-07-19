@@ -1082,6 +1082,8 @@ sub form_header {
                    "charts"    => { "key"       => "ALL_CHARTS",
                                     "transdate" => $::form->{transdate} });
 
+  # we cannot book on charttype header
+  @{ $::form->{ALL_CHARTS} } = grep { $_->{charttype} ne 'H' }  @{ $::form->{ALL_CHARTS} };
   $::form->{ALL_DEPARTMENTS} = SL::DB::Manager::Department->get_all;
 
   my $title      = $::form->{title};
@@ -1337,9 +1339,7 @@ sub post {
   my $locale   = $main::locale;
 
   if ($::myconfig{mandatory_departments} && !$form->{department_id}) {
-    $form->{saved_message} = $::locale->text('You have to specify a department.');
-    update();
-    exit;
+    $form->error($locale->text('You have to specify a department.'));
   }
 
   $form->{title}  = $locale->text("$form->{title} General Ledger Transaction");

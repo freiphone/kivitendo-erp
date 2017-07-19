@@ -16,6 +16,7 @@ use DateTime;
 use SL::DB::History;
 use SL::DB::Helper::ValidateAssembly qw(validate_assembly);
 use SL::CVar;
+use SL::MoreCommon qw(save_form);
 use Carp;
 
 use Rose::Object::MakeMethods::Generic (
@@ -25,6 +26,7 @@ use Rose::Object::MakeMethods::Generic (
                                   assortment assortment_items assembly assembly_items
                                   all_pricegroups all_translations all_partsgroups all_units
                                   all_buchungsgruppen all_payment_terms all_warehouses
+                                  parts_classification_filter
                                   all_languages all_units all_price_factors) ],
   'scalar'                => [ qw(warehouse bin) ],
 );
@@ -68,6 +70,18 @@ sub action_add_assortment {
   $self->part( SL::DB::Part->new_assortment );
   $self->add;
 };
+
+sub action_add_from_record {
+  my ($self) = @_;
+
+  check_has_valid_part_type($::form->{part}{part_type});
+
+  die 'parts_classification_type must be "sales" or "purchases"'
+    unless $::form->{parts_classification_type} =~ m/^(sales|purchases)$/;
+
+  $self->parse_form;
+  $self->add;
+}
 
 sub action_add {
   my ($self) = @_;
@@ -139,7 +153,8 @@ sub action_save {
   flash_later('info', $is_new ? t8('The item has been created.') . " " . $self->part->displayable_name : t8('The item has been saved.'));
 
   if ( $::form->{callback} ) {
-    $self->redirect_to($::form->unescape($::form->{callback}));
+    $self->redirect_to($::form->unescape($::form->{callback}) . '&new_parts_id=' . $self->part->id);
+
   } else {
     # default behaviour after save: reload item, this also resets last_modification!
     $self->redirect_to(controller => 'Part', action => 'edit', 'part.id' => $self->part->id);
@@ -957,6 +972,15 @@ sub init_multi_items_models {
   );
 }
 
+sub init_parts_classification_filter {
+  return [] unless $::form->{parts_classification_type};
+
+  return [ used_for_sale     => 't' ] if $::form->{parts_classification_type} eq 'sales';
+  return [ used_for_purchase => 't' ] if $::form->{parts_classification_type} eq 'purchases';
+
+  die "no query rules for parts_classification_type " . $::form->{parts_classification_type};
+}
+
 # simple checks to run on $::form before saving
 
 sub form_check_part_description_exists {
@@ -1274,6 +1298,17 @@ An alternative to the action_add_$PART_TYPE actions, takes the mandatory
 parameter part_type as an action. Example:
 
   controller.pl?action=Part/add&part_type=service
+
+=item C<action_add_from_record>
+
+When adding new items to records they can be created on the fly if the entered
+partnumber or description doesn't exist yet. After being asked what part type
+the new item should have the user is redirected to the correct edit page.
+
+Depending on whether the item was added from a sales or a purchase record, only
+the relevant part classifications should be selectable for new item, so this
+parameter is passed on via a hidden parts_classification_type in the new_item
+template.
 
 =item C<action_save>
 

@@ -376,7 +376,7 @@ sub _get_request_uri {
   return URI->new($ENV{HTTP_REFERER})->canonical() if $ENV{HTTP_X_FORWARDED_FOR};
   return URI->new                                  if !$ENV{REQUEST_URI}; # for testing
 
-  my $scheme =  $ENV{HTTPS} && (lc $ENV{HTTPS} eq 'on') ? 'https' : 'http';
+  my $scheme =  $::request->is_https ? 'https' : 'http';
   my $port   =  $ENV{SERVER_PORT};
   $port      =  undef if (($scheme eq 'http' ) && ($port == 80))
                       || (($scheme eq 'https') && ($port == 443));
@@ -426,7 +426,7 @@ sub create_http_response {
       $session_cookie = $cgi->cookie('-name'   => $main::auth->get_session_cookie_name(),
                                      '-value'  => $session_cookie_value,
                                      '-path'   => $uri->path,
-                                     '-secure' => $ENV{HTTPS});
+                                     '-secure' => $::request->is_https);
     }
   }
 
@@ -1087,7 +1087,8 @@ sub parse_template {
 
   if ( !$self->{preview} && $ext_for_format eq 'pdf' && $::instance_conf->get_doc_storage) {
     $self->{attachment_filename} ||= $self->generate_attachment_filename;
-    $self->{print_file_id} = $self->store_pdf($self)->id;
+    my $file_obj = $self->store_pdf($self);
+    $self->{print_file_id} = $file_obj->id if $file_obj;
   }
   if ($self->{media} eq 'email') {
     if ( getcwd() eq $self->{"tmpdir"} ) {
@@ -1278,6 +1279,10 @@ sub get_formname_translation {
     sales_delivery_order    => $main::locale->text('Delivery Order'),
     purchase_delivery_order => $main::locale->text('Delivery Order'),
     dunning                 => $main::locale->text('Dunning'),
+    dunning1                => $main::locale->text('Payment Reminder'),
+    dunning2                => $main::locale->text('Dunning'),
+    dunning3                => $main::locale->text('Last Dunning'),
+    dunning_invoice         => $main::locale->text('Dunning Invoice'),
     letter                  => $main::locale->text('Letter'),
     ic_supply               => $main::locale->text('Intra-Community supply'),
     statement               => $main::locale->text('Statement'),

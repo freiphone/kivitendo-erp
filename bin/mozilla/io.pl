@@ -560,13 +560,15 @@ sub item_selected {
   my $row = $curr_row;
 
   if ($myconfig{item_multiselect}) {
-    foreach (grep(/^select_qty_/, keys(%{ $form }))) {
+    my %multi_items;
+    for (keys %$form) {
       next unless $form->{$_};
-      $_ =~ /^select_qty_(\d+)/;
-      $form->{"id_${row}"}  = $1;
-      $form->{"qty_${row}"} = $form->{$_};
+      next unless /^select_qty_(\d+)/;
+      $multi_items{"id_${row}"}  = $1;
+      $multi_items{"qty_${row}"} = $form->{$_};
       $row++;
     }
+    $form->{$_} = $multi_items{$_} for keys %multi_items;
   } else {
     $form->{"id_${row}"} = delete($form->{select_item_id}) || croak 'Missing item selection ID';
     $row++;
@@ -695,34 +697,39 @@ sub item_selected {
 }
 
 sub new_item {
-  $main::lxdebug->enter_sub();
-
-  my $form     = $main::form;
-  my %myconfig = %main::myconfig;
-
   _check_io_auth();
 
-  my $price_key = ($form->{type} =~ m/request_quotation|purchase_order/) || ($form->{script} eq 'ir.pl') ? 'lastcost' : 'sellprice';
+  my $price = $::form->{vc} eq 'customer' ? 'sellprice_as_number' : 'lastcost_as_number';
+  my $previousform = $::auth->save_form_in_session;
+  my $callback     = build_std_url("action=return_from_new_item", "previousform=$previousform");
+  my $i            = $::form->{rowcount};
 
-  # change callback
-  $form->{old_callback} = $form->escape($form->{callback}, 1);
-  $form->{callback}     = $form->escape("$form->{script}?action=display_form", 1);
-
-  # save all form variables except action in the session and keep the key in the previousform variable
-  my $previousform = $::auth->save_form_in_session(skip_keys => [ qw(action) ]);
+  my $parts_classification_type = $::form->{vc} eq 'customer' ? 'sales' : 'purchases';
 
   my @HIDDENS;
-  push @HIDDENS,      { 'name' => 'previousform', 'value' => $previousform };
-  push @HIDDENS, map +{ 'name' => $_,             'value' => $form->{$_} },                       qw(rowcount vc);
-  push @HIDDENS, map +{ 'name' => $_,             'value' => $form->{"${_}_$form->{rowcount}"} }, qw(partnumber description unit);
-  push @HIDDENS,      { 'name' => 'taxaccount2',  'value' => $form->{taxaccounts} };
-  push @HIDDENS,      { 'name' => $price_key,     'value' => $form->parse_amount(\%myconfig, $form->{"sellprice_$form->{rowcount}"}) };
-  push @HIDDENS,      { 'name' => 'notes',        'value' => $form->{"longdescription_$form->{rowcount}"} };
+  push @HIDDENS,      { 'name' => 'callback',     'value' => $callback };
+  push @HIDDENS, map +{ 'name' => $_,             'value' => $::form->{$_} },        qw(rowcount vc);
+  push @HIDDENS, map +{ 'name' => "part.$_",      'value' => $::form->{"${_}_$i"} }, qw(partnumber description unit price_factor_id);
+  push @HIDDENS,      { 'name' => "part.$price",  'value' => $::form->{"sellprice_$i"} };
+  push @HIDDENS,      { 'name' => "part.notes",   'value' => $::form->{"longdescription_$i"} };
 
-  $form->header();
-  print $form->parse_html_template("generic/new_item", { HIDDENS => [ sort { $a->{name} cmp $b->{name} } @HIDDENS ] } );
+  push @HIDDENS,      { 'name' => "parts_classification_type", 'value' => $parts_classification_type };
 
-  $main::lxdebug->leave_sub();
+  $::form->header;
+  print $::form->parse_html_template("generic/new_item", { HIDDENS => [ sort { $a->{name} cmp $b->{name} } @HIDDENS ] } );
+}
+
+sub return_from_new_item {
+  _check_io_auth();
+
+  my $part = SL::DB::Manager::Part->find_by(id => delete $::form->{new_parts_id}) or die 'can not find part that was just saved!';
+
+  $::auth->restore_form_from_session(delete $::form->{previousform}, form => $::form);
+
+  $::form->{"id_$::form->{rowcount}"} = $part->id;
+
+  my $url = build_std_url("script=$::form->{script}", "RESTORE_FORM_FROM_SESSION_ID=" . $::auth->save_form_in_session);
+  print $::request->{cgi}->redirect($url);
 }
 
 sub check_form {
@@ -898,7 +905,7 @@ sub order {
   $form->{old_employee_id} = $form->{employee_id};
   $form->{old_salesman_id} = $form->{salesman_id};
 
-  delete $form->{$_} foreach (qw(printed emailed queued));
+  delete $form->{$_} foreach (qw(id printed emailed queued));
 
   # When creating a new sales order from a saved sales invoice, reset id,
   # ordnumber, transdate and deliverydate as we are creating a new order. This
@@ -979,7 +986,7 @@ sub quotation {
   if ($form->{second_run}) {
     $form->{print_and_post} = 0;
   }
-  delete $form->{$_} foreach (qw(printed emailed queued));
+  delete $form->{$_} foreach (qw(id printed emailed queued));
 
   my $buysell;
   if ($form->{script} eq 'ir.pl' || $form->{type} eq 'purchase_order') {
@@ -1831,25 +1838,44 @@ sub _make_record_item {
 
   $class = 'SL::DB::' . $class;
 
+  my %translated_methods = (
+    'SL::DB::OrderItem' => {
+      id                      => 'parts_id',
+      orderitems_id           => 'id',
+    },
+    'SL::DB::DeliveryOrderItem' => {
+      id                      => 'parts_id',
+      delivery_order_items_id => 'id',
+    },
+    'SL::DB::InvoiceItem' => {
+      id                      => 'parts_id',
+      invoice_id => 'id',
+    },
+  );
+
   eval "require $class";
 
   my $obj = $::form->{"orderitems_id_$row"}
           ? $class->meta->convention_manager->auto_manager_class_name->find_by(id => $::form->{"orderitems_id_$row"})
           : $class->new;
 
-  for my $method (apply { s/_$row$// } grep { /_$row$/ } keys %$::form) {
+  for my $key (grep { /_$row$/ } keys %$::form) {
+    my $method = $key;
+    $method =~ s/_$row$//;
+    $method = $translated_methods{$class}{$method} // $method;
+    my $value = $::form->{$key};
     if ($obj->meta->column($method)) {
       if ($obj->meta->column($method)->isa('Rose::DB::Object::Metadata::Column::Date')) {
-        $obj->${\"$method\_as_date"}($::form->{"$method\_$row"});
+        $obj->${\"$method\_as_date"}($value);
       } elsif ((ref $obj->meta->column($method)) =~ /^Rose::DB::Object::Metadata::Column::(?:Numeric|Float|DoublePrecsion)$/) {
-        $obj->${\"$method\_as_number"}($::form->{"$method\_$row"});
+        $obj->${\"$method\_as_number"}($value);
       } elsif ((ref $obj->meta->column($method)) =~ /^Rose::DB::Object::Metadata::Column::Boolean$/) {
-        $obj->$method(!!$::form->{$method});
+        $obj->$method(!!$value);
       } else {
-        $obj->$method($::form->{"$method\_$row"});
+        $obj->$method($value);
       }
     } else {
-      $obj->{__additional_form_attributes}{$method} = $::form->{"$method\_$row"};
+      $obj->{__additional_form_attributes}{$method} = $value;
     }
   }
 
@@ -1933,10 +1959,12 @@ sub _get_files_for_email_dialog {
 
   return %files if !$::instance_conf->get_doc_storage;
 
-  $files{versions} = [ SL::File->get_all_versions(object_id => $::form->{id},    object_type => $::form->{type}, file_type => 'document') ];
-  $files{files}    = [ SL::File->get_all(         object_id => $::form->{id},    object_type => $::form->{type}, file_type => 'attachment') ];
-  $files{vc_files} = [ SL::File->get_all(         object_id => $::form->{vc_id}, object_type => $::form->{vc},   file_type => 'attachment') ]
-    if $::form->{vc} && $::form->{"vc_id"};
+  if ($::form->{id}) {
+    $files{versions} = [ SL::File->get_all_versions(object_id => $::form->{id},    object_type => $::form->{type}, file_type => 'document') ];
+    $files{files}    = [ SL::File->get_all(         object_id => $::form->{id},    object_type => $::form->{type}, file_type => 'attachment') ];
+    $files{vc_files} = [ SL::File->get_all(         object_id => $::form->{vc_id}, object_type => $::form->{vc},   file_type => 'attachment') ]
+      if $::form->{vc} && $::form->{"vc_id"};
+  }
 
   my @parts =
     uniq_by { $_->{id} }
@@ -1960,9 +1988,16 @@ sub _get_files_for_email_dialog {
 }
 
 sub show_sales_purchase_email_dialog {
-  my $contact    = $::form->{cp_id} ? SL::DB::Contact->load_cached($::form->{cp_id}) : undef;
+  my $email = '';
+  if ($::form->{cp_id}) {
+    $email = SL::DB::Contact->load_cached($::form->{cp_id})->cp_email;
+  } elsif ($::form->{vc} && $::form->{vc_id}) {
+    $email = SL::DB::Customer->load_cached($::form->{vc_id})->email if 'customer' eq $::form->{vc};
+    $email = SL::DB::Vendor  ->load_cached($::form->{vc_id})->email if 'vendor'   eq $::form->{vc};
+  }
+
   my $email_form = {
-    to                  => $contact ? $contact->cp_email : '',
+    to                  => $email,
     subject             => $::form->generate_email_subject,
     attachment_filename => $::form->generate_attachment_filename,
   };

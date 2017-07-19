@@ -58,7 +58,16 @@ my (%uselines, %modules, %supplied, %requires);
   },
   'Archive::Zip' => {
     'Archive::Zip::Member'               => 1,
-  }
+  },
+  'HTML::Parser' => {
+    'HTML::Entities'                     => 1,
+  },
+  'URI' => {
+    'URI::Escape'                        => 1,
+  },
+  'File::MimeInfo' => {
+    'File::MimeInfo::Magic'              => 1,
+  },
 );
 
 GetOptions(

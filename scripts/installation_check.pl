@@ -58,7 +58,7 @@ GetOptions(
 );
 
 my %install_methods = (
-  apt    => { key => 'debian', install => 'sudo apt-get install', system => "Debian, Ubuntu" },
+  apt    => { key => 'debian', install => 'sudo apt install', system => "Debian, Ubuntu" },
   yum    => { key => 'fedora', install => 'sudo yum install',     system => "RHEL, Fedora, CentOS" },
   zypper => { key => 'suse',   install => 'sudo zypper install',  system => "SLES, openSUSE" },
   cpan   => { key => 'name',   install => "sudo cpan",            system => "CPAN" },
@@ -212,7 +212,7 @@ sub check_pdfinfo {
     print_line($line, $ver_string, 'green');
   } else {
     print_line($line, 'not installed','red');
-    my %modinfo = ( name => 'pdfinfo' );
+    my %modinfo = ( debian => 'poppler-utils' );
     push @missing_modules, \%modinfo;
 
   }
