@@ -33,14 +33,12 @@
 %
 % Mandanten / Firma:
 %   Um gleiche Vorlagen für verschiedene Firmen verwenden zu können, wird je
-%   nach dem Wert der Lx-Office-Variablen <%titlebar%> ein
+%   nach dem Wert der Kivitendo-Variablen <%kivicompany%> ein
 %   Firmenverzeichnis ausgewählt (siehe 'insettings.tex'), in dem Briefkopf,
 %   Identitäten und Währungs-/Kontoeinstellungen hinterlegt sind.
-%   <%titlebar%> enthält den Namen des Benutzers und der verwendeten
-%   Mandantendatenbank. Ist kein Firmenname eingetragen, so wird das
+%   <%kivicompany%> enthält den Namen des verwendeten Mandantendaten.
+%   Ist kein Firmenname eingetragen, so wird das
 %   generische Unterverzeichnis 'firma' verwendet.
-%   Das heißt, dass ein Firmenverzeichnis mit dem Namen der Mandantendatenbank
-%   angelegt werden sollte.
 %
 % Identitäten:
 %    In jedem Firmen-Unterverzeichnis soll eine Datei 'ident.tex'
@@ -48,12 +46,16 @@
 %    \firma, \strasse, \ort, \ustid, \email und \homepage definiert.
 %
 % Währungen / Konten:
-%    Für jede Währung (siehe 'settings.tex') soll eine Datei vorhanden
+%    Für jede Währung (siehe 'insettings.tex') soll eine Datei vorhanden
 %    sein, die das Währungssymbol (\currency) und folgende Angaben für
 %    ein Konto in dieser Währung enthält \kontonummer, \bank,
 %    \bankleitzahl, \bic und \iban.
 %    So kann in den Dokumenten je nach Währung ein anderes Konto
 %    angegeben werden.
+%    Nach demselben Schema können auch weitere, alternative Bankverbindungen
+%    angelegt werden, die dann in insettings.tex als Variable im
+%    unteren Abschnitt der Datei 'insettings.tex', Kommentar Fusszeile
+%    (cfoot) eingefügt werden.
 %
 % Briefbogen/Logos:
 %    Eine Hintergrundgrafik oder ein Logo kann in Abhängigkeit vom

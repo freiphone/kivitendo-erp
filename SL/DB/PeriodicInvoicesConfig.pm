@@ -96,6 +96,10 @@ sub calculate_invoice_dates {
   $start_date    = max($start_date, $params{start_date}) if $params{start_date};
   $end_date      = min($end_date,   $params{end_date})   if $params{end_date};
 
+  if ($self->periodicity eq 'o') {
+    return ($cur_date >= $start_date) && ($cur_date <= $end_date) ? ($cur_date) : ();
+  }
+
   my @dates;
 
   while ($cur_date <= $end_date) {
@@ -137,6 +141,7 @@ sub disable_one_time_config {
   if ($self->periodicity eq 'o') {
     _log_msg("setting inactive\n");
     $self->active(0);
+    $self->order->update_attributes(closed => 1);
     $self->save;
     return $self->order->ordnumber;
   }
@@ -252,7 +257,9 @@ the last invoice in that particular order value cycle.
 =item C<sub disable_one_time_config>
 
 Sets the state of the periodic_invoices_configs to inactive
-(active => false) if the periodicity is <Co> (one time).
+(active => false) and closes the source order (closed => true)
+if the periodicity is <Co> (one time).
+
 Returns undef if the periodicity is not 'one time' otherwise the
 order number of the deactivated periodic order.
 

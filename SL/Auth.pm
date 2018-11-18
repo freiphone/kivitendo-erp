@@ -1077,23 +1077,36 @@ sub evaluate_rights_ary {
 
   my $value  = 0;
   my $action = '|';
+  my $negate = 0;
 
   foreach my $el (@{$ary}) {
     if (ref $el eq "ARRAY") {
+      my $val = evaluate_rights_ary($el);
+      $val    = !$val if $negate;
+      $negate = 0;
       if ($action eq '|') {
-        $value |= evaluate_rights_ary($el);
+        $value |= $val;
       } else {
-        $value &= evaluate_rights_ary($el);
+        $value &= $val;
       }
 
     } elsif (($el eq '&') || ($el eq '|')) {
       $action = $el;
 
+    } elsif ($el eq '!') {
+      $negate = !$negate;
+
     } elsif ($action eq '|') {
-      $value |= $el;
+      my $val = $el;
+      $val    = !$val if $negate;
+      $negate = 0;
+      $value |= $val;
 
     } else {
-      $value &= $el;
+      my $val = $el;
+      $val    = !$val if $negate;
+      $negate = 0;
+      $value &= $val;
 
     }
   }
@@ -1308,6 +1321,11 @@ close the database connection.
 
 Creating a new database handle on each request can take up to 30% of the
 pre-request startup time, so we want to avoid that for fast ajax calls.
+
+=item C<assert, $right, $dont_abort>
+
+Checks if current user has the C<$right>. If C<$dont_abort> is falsish
+the request dies with a access denied error, otherwise returns true or false.
 
 =back
 

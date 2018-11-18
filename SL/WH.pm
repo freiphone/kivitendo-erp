@@ -80,7 +80,8 @@ sub transfer {
   my $db = SL::DB::Inventory->new->db;
   $db->with_transaction(sub{
     while (my $transfer = shift @args) {
-      my ($trans_id) = selectrow_query($::form, $::form->get_standard_dbh, qq|SELECT nextval('id')|);
+      my $trans_id;
+      ($trans_id) = selectrow_query($::form, $::form->get_standard_dbh, qq|SELECT nextval('id')|) if $transfer->{qty};
 
       my $part          = $objectify->($transfer, 'parts',         'SL::DB::Part');
       my $unit          = $objectify->($transfer, 'unit',          'SL::DB::Unit',         name => $transfer->{unit});
@@ -98,13 +99,21 @@ sub transfer {
       $direction |= 1 if $src_bin;
       $direction |= 2 if $dst_bin;
 
-      my $transfer_type = $objectify->($transfer, 'transfer_type', 'SL::DB::TransferType', direction   => $directions[$direction],
-                                                                                           description => $transfer->{transfer_type});
+      my $transfer_type_id;
+      if ($transfer->{transfer_type_id}) {
+        $transfer_type_id = $transfer->{transfer_type_id};
+      } else {
+        my $transfer_type = $objectify->($transfer, 'transfer_type', 'SL::DB::TransferType', direction   => $directions[$direction],
+                                                                                             description => $transfer->{transfer_type});
+        $transfer_type_id = $transfer_type->id;
+      }
+
+      my $stocktaking_qty = $transfer->{stocktaking_qty};
 
       my %params = (
           part             => $part,
           employee         => $employee,
-          trans_type       => $transfer_type,
+          trans_type_id    => $transfer_type_id,
           project          => $project,
           trans_id         => $trans_id,
           shippingdate     => !$transfer->{shippingdate} || $transfer->{shippingdate} eq 'current_date'
@@ -113,13 +122,15 @@ sub transfer {
       );
 
       if ($unit) {
-        $qty = $unit->convert_to($qty, $part->unit_obj);
+        $qty             = $unit->convert_to($qty,             $part->unit_obj);
+        $stocktaking_qty = $unit->convert_to($stocktaking_qty, $part->unit_obj);
       }
 
       $params{chargenumber} ||= '';
 
-      if ($direction & 1) {
-        SL::DB::Inventory->new(
+      my @inventories;
+      if ($qty && $direction & 1) {
+        push @inventories, SL::DB::Inventory->new(
           %params,
           warehouse => $src_wh,
           bin       => $src_bin,
@@ -127,8 +138,8 @@ sub transfer {
         )->save;
       }
 
-      if ($direction & 2) {
-        SL::DB::Inventory->new(
+      if ($qty && $direction & 2) {
+        push @inventories, SL::DB::Inventory->new(
           %params,
           warehouse => $dst_wh->id,
           bin       => $dst_bin->id,
@@ -138,6 +149,30 @@ sub transfer {
         if (defined($transfer->{change_default_bin})){
           $part->update_attributes(warehouse_id  => $dst_wh->id, bin_id => $dst_bin->id);
         }
+      }
+
+      # Record stocktaking if requested.
+      # This is only possible if transfer was a stock in or stock out,
+      # but not both (transfer).
+      if ($transfer->{record_stocktaking}) {
+        die 'Stocktaking can only be recorded for stock in or stock out, but not on a transfer.' if scalar @inventories > 1;
+
+        my $inventory_id;
+        $inventory_id = $inventories[0]->id if $inventories[0];
+
+        SL::DB::Stocktaking->new(
+          inventory_id => $inventory_id,
+          warehouse    => $src_wh  || $dst_wh,
+          bin          => $src_bin || $dst_bin,
+          parts_id     => $part->id,
+          employee_id  => $employee->id,
+          qty          => $stocktaking_qty,
+          comment      => $transfer->{comment},
+          cutoff_date  => $transfer->{stocktaking_cutoff_date},
+          chargenumber => $transfer->{chargenumber},
+          bestbefore   => $transfer->{bestbefore},
+        )->save;
+
       }
 
       push @trans_ids, $trans_id;
@@ -312,9 +347,7 @@ sub transfer_assembly {
    }
     # gibt die Fehlermeldung zurück. A.) Keine Teile definiert
     #                                B.) Artikel und Anzahl der fehlenden Teile/Dienstleistungen
-    if ($kannNichtFertigen) {
-      return 0;
-    }
+    die "<br><br>" . $kannNichtFertigen if ($kannNichtFertigen);
 
     # soweit alles gut. Jetzt noch die wirkliche Lagerbewegung für das Erzeugnis ausführen ...
     my $transferAssemblySQL = qq|INSERT INTO inventory (parts_id, warehouse_id, bin_id, chargenumber, bestbefore,
@@ -569,19 +602,6 @@ sub get_warehouse_journal {
   my ($h_oe_id, $q_oe_id);
   if ($form->{l_oe_id}) {
     $q_oe_id = <<SQL;
-      SELECT oe.id AS id,
-        CASE WHEN oe.quotation THEN oe.quonumber ELSE oe.ordnumber END AS number,
-        CASE
-          WHEN oe.customer_id IS NOT NULL AND     COALESCE(oe.quotation, FALSE) THEN 'sales_quotation'
-          WHEN oe.customer_id IS NOT NULL AND NOT COALESCE(oe.quotation, FALSE) THEN 'sales_order'
-          WHEN oe.customer_id IS     NULL AND     COALESCE(oe.quotation, FALSE) THEN 'request_quotation'
-          ELSE                                                                       'purchase_order'
-        END AS type
-      FROM oe
-      WHERE oe.id = ?
-
-      UNION
-
       SELECT dord.id AS id, dord.donumber AS number,
         CASE
           WHEN dord.customer_id IS NULL THEN 'purchase_delivery_order'
@@ -589,18 +609,6 @@ sub get_warehouse_journal {
         END AS type
       FROM delivery_orders dord
       WHERE dord.id = ?
-
-      UNION
-
-      SELECT ar.id AS id, ar.invnumber AS number, 'sales_invoice' AS type
-      FROM ar
-      WHERE ar.id = ?
-
-      UNION
-
-      SELECT ap.id AS id, ap.invnumber AS number, 'purchase_invoice' AS type
-      FROM ap
-      WHERE ap.id = ?
 
       UNION
 
@@ -634,8 +642,7 @@ SQL
     }
 
     if ($h_oe_id && ($ref->{oe_id} || $ref->{invoice_id})) {
-      my $id = $ref->{oe_id} ? $ref->{oe_id} : $ref->{invoice_id};
-      do_statement($form, $h_oe_id, $q_oe_id, ($id) x 6);
+      do_statement($form, $h_oe_id, $q_oe_id, $ref->{oe_id}, ($ref->{invoice_id}) x 2);
       $ref->{oe_id_info} = $h_oe_id->fetchrow_hashref() || {};
     }
 
@@ -1161,6 +1168,13 @@ transfer accepts more than one transaction parameter, each being a hash ref. If
 more than one is supplied, it is guaranteed, that all are processed in the same
 transaction.
 
+It is possible to record stocktakings within this transaction as well.
+This is useful if the transfer is the result of stocktaking (see also
+C<SL::Controller::Inventory>). To do so the parameters C<record_stocktaking>,
+C<stocktaking_qty> and C<stocktaking_cutoff_date> hava to be given.
+If stocktaking should be saved, then the transfer quantity can be zero. In this
+case no entry in inventory will be made, but only the stocktaking entry.
+
 Here is a full list of parameters. All "_id" parameters except oe and
 orderitems can be called without id with RDB objects as well.
 
@@ -1226,6 +1240,18 @@ An optional comment.
 =item best_before
 
 An expiration date. Note that this is not by default used by C<warehouse_report>.
+
+=item record_stocktaking
+
+A boolean flag to indicate that a stocktaking entry should be saved.
+
+=item stocktaking_qty
+
+The quantity for the stocktaking entry.
+
+=item stocktaking_cutoff_date
+
+The cutoff date for the stocktaking entry.
 
 =back
 

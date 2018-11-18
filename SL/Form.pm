@@ -1,4 +1,4 @@
-#========= ===========================================================
+#=====================================================================
 # LX-Office ERP
 # Copyright (C) 2004
 # Based on SQL-Ledger Version 2.1.9
@@ -49,6 +49,7 @@ use Encode;
 use File::Copy;
 use IO::File;
 use Math::BigInt;
+use POSIX qw(strftime);
 use SL::Auth;
 use SL::Auth::DB;
 use SL::Auth::LDAP;
@@ -78,6 +79,7 @@ use SL::Request;
 use SL::Template;
 use SL::User;
 use SL::Util;
+use SL::Version;
 use SL::X;
 use Template;
 use URI;
@@ -90,14 +92,7 @@ use SL::Helper::CreatePDF qw(merge_pdfs);
 use strict;
 
 sub read_version {
-  my ($self) = @_;
-
-  open VERSION_FILE, "VERSION";                 # New but flexible code reads version from VERSION-file
-  my $version =  <VERSION_FILE>;
-  $version    =~ s/[^0-9A-Za-z\.\_\-]//g; # only allow numbers, letters, points, underscores and dashes. Prevents injecting of malicious code.
-  close VERSION_FILE;
-
-  return $version;
+  SL::Version->get_version;
 }
 
 sub new {
@@ -114,8 +109,6 @@ sub new {
   }
 
   bless $self, $type;
-
-  $self->{version} = $self->read_version;
 
   $main::lxdebug->leave_sub();
 
@@ -157,7 +150,7 @@ sub _flatten_variables_rec {
           $first_array_entry = 0;
         }
       } else {
-        @result = ({ 'key' => $prefix . $key . ($first_array_entry ? '[+]' : '[]'), 'value' => $element });
+        push @result, { 'key' => $prefix . $key . '[]', 'value' => $element };
       }
     }
   }
@@ -188,7 +181,7 @@ sub flatten_standard_variables {
   $main::lxdebug->enter_sub(2);
 
   my $self      = shift;
-  my %skip_keys = map { $_ => 1 } (qw(login password header stylesheet titlebar version), @_);
+  my %skip_keys = map { $_ => 1 } (qw(login password header stylesheet titlebar), @_);
 
   my @variables;
 
@@ -199,36 +192,6 @@ sub flatten_standard_variables {
   $main::lxdebug->leave_sub(2);
 
   return @variables;
-}
-
-sub debug {
-  $main::lxdebug->enter_sub();
-
-  my ($self) = @_;
-
-  print "\n";
-
-  map { print "$_ = $self->{$_}\n" } (sort keys %{$self});
-
-  $main::lxdebug->leave_sub();
-}
-
-sub dumper {
-  $main::lxdebug->enter_sub(2);
-
-  my $self          = shift;
-  my $password      = $self->{password};
-
-  $self->{password} = 'X' x 8;
-
-  local $Data::Dumper::Sortkeys = 1;
-  my $output                    = Dumper($self);
-
-  $self->{password} = $password;
-
-  $main::lxdebug->leave_sub(2);
-
-  return $output;
 }
 
 sub escape {
@@ -475,7 +438,7 @@ sub header {
   ), "jquery/ui/i18n/jquery.ui.datepicker-$::myconfig{countrycode}");
 
   $self->{favicon} ||= "favicon.ico";
-  $self->{titlebar} = join ' - ', grep $_, $self->{title}, $self->{login}, $::myconfig{dbname}, $self->{version} if $self->{title} || !$self->{titlebar};
+  $self->{titlebar} = join ' - ', grep $_, $self->{title}, $self->{login}, $::myconfig{dbname}, $self->read_version if $self->{title} || !$self->{titlebar};
 
   # build includes
   if ($self->{refresh_url} || $self->{refresh_time}) {
@@ -569,7 +532,7 @@ sub set_standard_title {
   $::lxdebug->enter_sub;
   my $self = shift;
 
-  $self->{titlebar}  = "kivitendo " . $::locale->text('Version') . " $self->{version}";
+  $self->{titlebar}  = "kivitendo " . $::locale->text('Version') . " " . $self->read_version;
   $self->{titlebar} .= "- $::myconfig{name}"   if $::myconfig{name};
   $self->{titlebar} .= "- $::myconfig{dbname}" if $::myconfig{name};
 
@@ -1022,16 +985,19 @@ sub parse_template {
 
   # OUT is used for the media, screen, printer, email
   # for postscript we store a copy in a temporary file
+  my $keep_temp_files = $::lx_office_conf{debug} && $::lx_office_conf{debug}->{keep_temp_files};
+
   my ($temp_fh, $suffix);
   $suffix =  $self->{IN};
   $suffix =~ s/.*\.//;
   ($temp_fh, $self->{tmpfile}) = File::Temp::tempfile(
-    'kivitendo-printXXXXXX',
+    strftime('kivitendo-print-%Y%m%d%H%M%S-XXXXXX', localtime()),
     SUFFIX => '.' . ($suffix || 'tex'),
     DIR    => $userspath,
-    UNLINK => ($::lx_office_conf{debug} && $::lx_office_conf{debug}->{keep_temp_files})? 0 : 1,
+    UNLINK => $keep_temp_files ? 0 : 1,
   );
   close $temp_fh;
+  chmod 0644, $self->{tmpfile} if $keep_temp_files;
   (undef, undef, $self->{template_meta}{tmpfile}) = File::Spec->splitpath( $self->{tmpfile} );
 
   $out              = $self->{OUT};
@@ -1061,16 +1027,16 @@ sub parse_template {
   close OUT if $self->{OUT};
   # check only one flag (webdav_documents)
   # therefore copy to webdav, even if we do not have the webdav feature enabled (just archive)
-  my $copy_to_webdav =  $::instance_conf->get_webdav_documents && !$self->{preview} && $self->{tmpdir} && $self->{tmpfile} && $self->{type};
-
-  if ( $ext_for_format eq 'pdf' && $::instance_conf->get_doc_storage ) {
+  my $copy_to_webdav =  $::instance_conf->get_webdav_documents && !$self->{preview} && $self->{tmpdir} && $self->{tmpfile} && $self->{type}
+                        && $self->{type} ne 'statement';
+  if ( $ext_for_format eq 'pdf' && $self->doc_storage_enabled ) {
     $self->append_general_pdf_attachments(filepath =>  $self->{tmpdir}."/".$self->{tmpfile},
                                           type     =>  $self->{type});
   }
   if ($self->{media} eq 'file') {
     copy(join('/', $self->{cwd}, $userspath, $self->{tmpfile}), $out =~ m|^/| ? $out : join('/', $self->{cwd}, $out)) if $template->uses_temp_file;
     Common::copy_file_to_webdav_folder($self)                                                                         if $copy_to_webdav;
-    if (!$self->{preview} && $::instance_conf->get_doc_storage)
+    if (!$self->{preview} && $self->doc_storage_enabled)
     {
       $self->{attachment_filename} ||= $self->generate_attachment_filename;
       $self->store_pdf($self);
@@ -1085,7 +1051,7 @@ sub parse_template {
 
   Common::copy_file_to_webdav_folder($self) if $copy_to_webdav;
 
-  if ( !$self->{preview} && $ext_for_format eq 'pdf' && $::instance_conf->get_doc_storage) {
+  if ( !$self->{preview} && $ext_for_format eq 'pdf' && $self->doc_storage_enabled) {
     $self->{attachment_filename} ||= $self->generate_attachment_filename;
     my $file_obj = $self->store_pdf($self);
     $self->{print_file_id} = $file_obj->id if $file_obj;
@@ -1131,7 +1097,7 @@ sub send_email {
   my $mail = Mailer->new;
 
   map { $mail->{$_} = $self->{$_} }
-    qw(cc subject message version format);
+    qw(cc subject message format);
 
   $mail->{bcc}    = $self->get_bcc_defaults($myconfig, $self->{bcc});
   $mail->{to}     = $self->{EMAIL_RECIPIENT} ? $self->{EMAIL_RECIPIENT} : $self->{email};
@@ -1144,7 +1110,7 @@ sub send_email {
   my @attfiles;
   # if we send html or plain text inline
   if (($self->{format} eq 'html') && ($self->{sendmode} eq 'inline')) {
-    $mail->{contenttype}    =  "text/html";
+    $mail->{content_type}   =  "text/html";
     $mail->{message}        =~ s/\r//g;
     $mail->{message}        =~ s/\n/<br>\n/g;
     $full_signature         =~ s/\n/<br>\n/g;
@@ -1195,7 +1161,12 @@ sub send_email {
   $mail->{message}  =~ s/\r//g;
   $mail->{message} .= $full_signature;
   $self->{emailerr} = $mail->send();
-  # $self->error($self->cleanup . "$err") if $self->{emailerr};
+
+  if ($self->{emailerr}) {
+    $self->cleanup;
+    $self->error($::locale->text('The email was not sent due to the following error: #1.', $self->{emailerr}));
+  }
+
   $self->{email_journal_id} = $mail->{journalentry};
   $self->{snumbers}  = "emailjournal" . "_" . $self->{email_journal_id};
   $self->{what_done} = $::form->{type};
@@ -1369,6 +1340,38 @@ sub generate_email_subject {
 
   $main::lxdebug->leave_sub();
   return $subject;
+}
+
+sub generate_email_body {
+  $main::lxdebug->enter_sub();
+  my ($self) = @_;
+  # simple german and english will work grammatically (most european languages as well)
+  # Dear Mr Alan Greenspan:
+  # Sehr geehrte Frau Meyer,
+  # A l’attention de Mme Villeroy,
+  # Gentile Signora Ferrari,
+  my $body = '';
+
+  if ($self->{cp_id}) {
+    my $givenname = SL::DB::Contact->load_cached($self->{cp_id})->cp_givenname; # for qw(gender givename name);
+    my $name      = SL::DB::Contact->load_cached($self->{cp_id})->cp_name; # for qw(gender givename name);
+    my $gender    = SL::DB::Contact->load_cached($self->{cp_id})->cp_gender; # for qw(gender givename name);
+    my $mf = $gender eq 'f' ? 'female' : 'male';
+    $body  = GenericTranslations->get(translation_type => "salutation_$mf", language_id => $self->{language_id});
+    $body .= ' ' . $givenname . ' ' . $name if $body;
+  } else {
+    $body  = GenericTranslations->get(translation_type => "salutation_general", language_id => $self->{language_id});
+  }
+
+  return undef unless $body;
+
+  $body   .= GenericTranslations->get(translation_type =>"salutation_punctuation_mark", language_id => $self->{language_id}) . "\n";
+  $body   .= GenericTranslations->get(translation_type =>"preset_text_$self->{formname}", language_id => $self->{language_id});
+
+  $body = $main::locale->unquote_special_chars('HTML', $body);
+
+  $main::lxdebug->leave_sub();
+  return $body;
 }
 
 sub cleanup {
@@ -3581,29 +3584,6 @@ sub create_email_signature {
   return $signature;
 
 };
-
-sub layout {
-  my ($self) = @_;
-  $::lxdebug->enter_sub;
-
-  my %style_to_script_map = (
-    v3  => 'v3',
-    neu => 'new',
-  );
-
-  my $menu_script = $style_to_script_map{$::myconfig{menustyle}} || '';
-
-  package main;
-  require "bin/mozilla/menu$menu_script.pl";
-  package Form;
-  require SL::Controller::FrameHeader;
-
-
-  my $layout = SL::Controller::FrameHeader->new->action_header . ::render();
-
-  $::lxdebug->leave_sub;
-  return $layout;
-}
 
 sub calculate_tax {
   # this function calculates the net amount and tax for the lines in ar, ap and

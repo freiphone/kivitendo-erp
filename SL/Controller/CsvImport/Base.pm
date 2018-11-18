@@ -34,7 +34,7 @@ sub run {
   $self->controller->track_progress(phase => 'parsing csv', progress => 0);
 
   my $profile = $self->profile;
-  $self->csv(SL::Helper::Csv->new(file                   => $self->file->file_name,
+  $self->csv(SL::Helper::Csv->new(file                   => ('SCALAR' eq ref $self->file)? $self->file: $self->file->file_name,
                                   encoding               => $self->controller->profile->get('charset'),
                                   profile                => [{ profile => $profile, class => $self->class, mapping => $self->controller->mappings_for_profile }],
                                   ignore_unknown_columns => 1,
@@ -603,8 +603,10 @@ sub _save_history {
                  : $self->controller->{type} eq 'ar_transactions'   ? 'invnumber_' . $object->invnumber
                  : '';
 
-    my $what_done = $self->controller->{type} eq 'orders' ? 'sales_order'
-                  : '';
+    my $what_done = '';
+    if ($self->controller->{type} eq 'orders') {
+      $what_done = $object->customer_id ? 'sales_order' : 'purchase_order';
+    }
 
     SL::DB::History->new(
       trans_id    => $object->id,

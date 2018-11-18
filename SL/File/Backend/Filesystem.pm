@@ -14,38 +14,48 @@ use File::Path qw(make_path);
 
 sub delete {
   my ($self, %params) = @_;
-  $main::lxdebug->message(LXDebug->DEBUG2(), "del in backend " . $self . "  file " . $params{dbfile});
-  $main::lxdebug->message(LXDebug->DEBUG2(), "file id=" . ($params{dbfile}->id * 1));
-  die "no dbfile" unless $params{dbfile};
-  my $backend_data = $params{dbfile}->backend_data;
-  $backend_data    = 0                               if $params{last};
-  $backend_data    = $params{dbfile}->backend_data-1 if $params{all_but_notlast};
+  die "no dbfile in backend delete" unless $params{dbfile};
+  my $last_version  = $params{dbfile}->backend_data;
+  my $first_version = 1;
+  $last_version     = 0                               if $params{last};
+  $last_version     = $params{dbfile}->backend_data-1 if $params{all_but_notlast};
+  $last_version     = $params{version}                if $params{version};
+  $first_version    = $params{version}                if $params{version};
 
-  if ($backend_data > 0 ) {
-    $main::lxdebug->message(LXDebug->DEBUG2(), "backend_data=" .$backend_data);
-    for my $version ( 1..$backend_data) {
+  if ($last_version > 0 ) {
+    for my $version ( $first_version..$last_version) {
       my $file_path = $self->_filesystem_path($params{dbfile},$version);
-      $main::lxdebug->message(LXDebug->DEBUG2(), "unlink " .$file_path);
       unlink($file_path);
     }
-    if ($params{all_but_notlast}) {
+    if ($params{version}) {
+      for my $version ( $last_version+1 .. $params{dbfile}->backend_data) {
+        my $from = $self->_filesystem_path($params{dbfile},$version);
+        my $to   = $self->_filesystem_path($params{dbfile},$version - 1);
+        die "file not exists in backend delete" unless -f $from;
+        rename($from,$to);
+      }
+      $params{dbfile}->backend_data($params{dbfile}->backend_data-1);
+    }
+    elsif ($params{all_but_notlast}) {
       my $from = $self->_filesystem_path($params{dbfile},$params{dbfile}->backend_data);
-      my $to   = $self->_filesystem_path($params{dbfile},$params{dbfile}->backend_data);
-      die "file not exists" unless -f $from;
+      my $to   = $self->_filesystem_path($params{dbfile},1);
+      die "file not exists in backend delete" unless -f $from;
       rename($from,$to);
       $params{dbfile}->backend_data(1);
     } else {
       $params{dbfile}->backend_data(0);
+    }
+    unless ($params{dbfile}->backend_data) {
       my $dir_path = $self->_filesystem_path($params{dbfile});
       rmdir($dir_path);
-      $main::lxdebug->message(LXDebug->DEBUG2(), "unlink " .$dir_path);
     }
   } else {
     my $file_path = $self->_filesystem_path($params{dbfile},$params{dbfile}->backend_data);
-    die "file not exists" unless -f $file_path;
+    die "file not exists in backend delete" unless -f $file_path;
     unlink($file_path);
     $params{dbfile}->backend_data($params{dbfile}->backend_data-1);
   }
+  return 1;
 }
 
 sub rename {
@@ -69,6 +79,9 @@ sub save {
     print OUT $params{file_contents};
     close(OUT);
   }
+  if ($params{mtime}) {
+    utime($params{mtime}, $params{mtime}, $tofile);
+  }
   return 1;
 }
 
@@ -81,14 +94,14 @@ sub get_version_count {
 sub get_mtime {
   my ($self, %params) = @_;
   die "no dbfile" unless $params{dbfile};
-  $main::lxdebug->message(LXDebug->DEBUG2(), "version=" .$params{version});
   die "unknown version" if $params{version} &&
-                          ($params{version} < 0 || $params{version} > $params{dbfile}->backend_data) ;
-  my $path = $self->_filesystem_path($params{dbfile},$params{version});
-  die "no file found in backend or configuration to filesystem is wrong" if !-f $path;
+                          ($params{version} < 0 || $params{version} > $params{dbfile}->backend_data);
+  my $path = $self->_filesystem_path($params{dbfile}, $params{version});
+
+  die "No file found at $path. Expected: $params{dbfile}{file_name}, file.id: $params{dbfile}{id}" if !-f $path;
+
   my @st = stat($path);
-  my $dt = DateTime->from_epoch(epoch => $st[9])->clone();
-  $main::lxdebug->message(LXDebug->DEBUG2(), "dt=" .$dt);
+  my $dt = DateTime->from_epoch(epoch => $st[9], time_zone => $::locale->get_local_time_zone()->name, locale => $::lx_office_conf{system}->{language})->clone();
   return $dt;
 }
 
@@ -96,7 +109,7 @@ sub get_filepath {
   my ($self, %params) = @_;
   die "no dbfile" unless $params{dbfile};
   my $path = $self->_filesystem_path($params{dbfile},$params{version});
-  die "no file" if !-f $path;
+  die "no file in backend get_filepath" if !-f $path;
   return $path;
 }
 
@@ -115,6 +128,34 @@ sub enabled {
   return 1;
 }
 
+sub sync_from_backend {
+  my ($self, %params) = @_;
+  my @query = (file_type => $params{file_type});
+  push @query, (file_name => $params{file_name}) if $params{file_name};
+  push @query, (mime_type => $params{mime_type}) if $params{mime_type};
+  push @query, (source    => $params{source})    if $params{source};
+
+  my $sortby = $params{sort_by} || 'itime DESC,file_name ASC';
+
+  my @files = @{ SL::DB::Manager::File->get_all(query => [@query], sort_by => $sortby) };
+  for (@files) {
+    $main::lxdebug->message(LXDebug->DEBUG2(), "file id=" . $_->id." version=".$_->backend_data);
+    my $newversion = $_->backend_data;
+    for my $version ( reverse 1 .. $_->backend_data ) {
+      my $path = $self->_filesystem_path($_, $version);
+      $main::lxdebug->message(LXDebug->DEBUG2(), "path=".$path." exists=".( -f $path?1:0));
+      last if -f $path;
+      $newversion = $version - 1;
+    }
+    $main::lxdebug->message(LXDebug->DEBUG2(), "newversion=".$newversion." version=".$_->backend_data);
+    if ( $newversion < $_->backend_data ) {
+      $_->backend_data($newversion);
+      $_->save   if $newversion >  0;
+      $_->delete if $newversion <= 0;
+    }
+  }
+
+}
 
 #
 # internals
@@ -129,7 +170,6 @@ sub _filesystem_path {
   $version    = $dbfile->backend_data if !$version || $version < 1 || $version > $dbfile->backend_data;
   my $iddir   = sprintf("%04d", $dbfile->id % 1000);
   my $path    = File::Spec->catdir($::lx_office_conf{paths}->{document_path}, $::auth->client->{id}, $iddir, $dbfile->id);
-  $main::lxdebug->message(LXDebug->DEBUG2(), "file path=" .$path." id=" .$dbfile->id." version=".$version." basename=".$dbfile->id . '_' . $version);
   if (!-d $path) {
     File::Path::make_path($path, { chmod => 0770 });
   }

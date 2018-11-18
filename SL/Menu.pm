@@ -73,6 +73,8 @@ sub _merge {
   for my $node (@$data) {
     my $id = $node->{id};
 
+    die "menu: node with name '$node->{name}' does not have an id" if !$id;
+
     my $merge_to = $by_id->{$id};
 
     if (!$merge_to) {
@@ -115,6 +117,19 @@ sub build_tree {
   # order them by parent
   for my $node ($self->nodes) {
     push @{ $by_parent{ $node->{parent} // '' } //= [] }, $node;
+  }
+
+  # autovivify order in by_parent, so that numerical sorting for entries without order
+  # preserves their order and position with respect to entries with order.
+  for (values %by_parent) {
+    my $last_order = 0;
+    for my $node (@$_) {
+      if (defined $node->{order} && $node->{order} * 1) {
+        $last_order = $node->{order};
+      } else {
+        $node->{order} = ++$last_order;
+      }
+    }
   }
 
   my $tree = { };
@@ -165,7 +180,7 @@ sub parse_access_string {
 
   my $access = $node->{access};
 
-  while ($access =~ m/^([a-z_\/]+|\||\&|\(|\)|\s+)/) {
+  while ($access =~ m/^([a-z_\/]+|\!|\||\&|\(|\)|\s+)/) {
     my $token = $1;
     substr($access, 0, length($1)) = "";
 
@@ -184,7 +199,7 @@ sub parse_access_string {
       }
       $cur_ary = $stack[-1];
 
-    } elsif (($token eq "|") || ($token eq "&")) {
+    } elsif (($token eq "|") || ($token eq "&") || ($token eq "!")) {
       push @{$cur_ary}, $token;
 
     } else {
@@ -258,4 +273,3 @@ sub set_access {
 }
 
 1;
-

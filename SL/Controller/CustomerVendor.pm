@@ -10,6 +10,8 @@ use SL::DBUtils;
 use SL::Helper::Flash;
 use SL::Locale::String;
 use SL::Controller::Helper::GetModels;
+use SL::Controller::Helper::ReportGenerator;
+use SL::Controller::Helper::ParseFilter;
 
 use SL::DB::Customer;
 use SL::DB::Vendor;
@@ -25,6 +27,11 @@ use SL::DB::FollowUp;
 use SL::DB::FollowUpLink;
 use SL::DB::History;
 use SL::DB::Currency;
+use SL::DB::Invoice;
+use SL::DB::PurchaseInvoice;
+use SL::DB::Order;
+
+use Data::Dumper;
 
 use Rose::Object::MakeMethods::Generic (
   'scalar --get_set_init' => [ qw(customer_models vendor_models) ],
@@ -272,10 +279,16 @@ sub _transaction {
 
   my $name = $::form->escape($self->{cv}->name, 1);
   my $db = $self->is_vendor() ? 'vendor' : 'customer';
+  my $action = 'add';
+
+  if ($::instance_conf->get_feature_experimental_order && 'oe.pl' eq $script) {
+    $script = 'controller.pl';
+    $action = 'Order/' . $action;
+  }
 
   my $url = $self->url_for(
     controller => $script,
-    action     => 'add',
+    action     => $action,
     vc         => $db,
     $db .'_id' => $self->{cv}->id,
     $db        => $name,
@@ -460,7 +473,6 @@ sub action_search_contact {
   print $::form->redirect_header($url);
 }
 
-
 sub action_get_delivery {
   my ($self) = @_;
 
@@ -640,7 +652,6 @@ sub action_ajaj_autocomplete {
 }
 
 sub action_test_page {
-  $::request->{layout}->add_javascripts('autocomplete_customer.js');
   $_[0]->render('customer_vendor/test_page');
 }
 
@@ -937,11 +948,42 @@ sub _pre_render {
     with_objects => ['follow_up'],
   );
 
+  if ( $self->is_vendor()) {
+    $self->{open_items} = SL::DB::Manager::PurchaseInvoice->get_all_count(
+      query => [
+        vendor_id => $self->{cv}->id,
+        paid => {lt_sql => 'amount'},
+      ],
+    );
+  } else {
+    $self->{open_items} = SL::DB::Manager::Invoice->get_all_count(
+      query => [
+        customer_id => $self->{cv}->id,
+        paid => {lt_sql => 'amount'},
+      ],
+    );
+  }
+
+  if ( $self->is_vendor() ) {
+    $self->{open_orders} = SL::DB::Manager::Order->get_all_count(
+      query => [
+        vendor_id => $self->{cv}->id,
+        closed => 'F',
+      ],
+    );
+  } else {
+    $self->{open_orders} = SL::DB::Manager::Order->get_all_count(
+      query => [
+        customer_id => $self->{cv}->id,
+        closed => 'F',
+      ],
+    );
+  }
   $self->{template_args} ||= {};
 
-  $::request->{layout}->add_javascripts('autocomplete_customer.js');
   $::request->{layout}->add_javascripts('kivi.CustomerVendor.js');
   $::request->{layout}->add_javascripts('kivi.File.js');
+  $::request->{layout}->add_javascripts('kivi.CustomerVendorTurnover.js');
 
   $self->_setup_form_action_bar;
 }

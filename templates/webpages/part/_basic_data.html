@@ -23,16 +23,12 @@
              </tr>
              <tr>
               <th align="right">[% 'Part Classification' | $T8 %]</th>
-              <td>[% P.select_classification('part.classification_id', default => SELF.part.classification_id, type => SELF.parts_classification_filter ) %]</td>
+              <td>[% P.part.select_classification('part.classification_id', default => SELF.part.classification_id, type => SELF.parts_classification_filter ) %]</td>
              </tr>
              <tr>
               <th align="right">[% 'Part Description' | $T8 %]</th>
               <td>
-               [%- IF description_area %]
-               <textarea name="description" rows="[% HTML.escape(rows) %]" cols="40" wrap="soft">[% HTML.escape(description) %]</textarea>
-               [%- ELSE %]
-               [% L.input_tag("part.description", SELF.part.description, size=40) %]</td>
-               [%- END %]
+               [% L.areainput_tag("part.description", SELF.part.description, size=40) %]</td>
               </td>
              </tr>
              <tr>
@@ -155,7 +151,7 @@
           [% IF SELF.all_warehouses.size %]
           <tr>
            <th align="right" nowrap="true">[% 'Default Warehouse' | $T8 %]</th>
-           <td>[% L.select_tag('part.warehouse_id', SELF.all_warehouses, default=SELF.part.warehouse.id, title_key='description', with_empty=>1) %]
+           <td>[% L.select_tag('part.warehouse_id', SELF.all_warehouses, default=SELF.part.warehouse.id, title_key='description', with_empty=1) %]
            </td>
           </tr>
           [% END %]
@@ -227,6 +223,9 @@
  [% PROCESS 'part/_pricegroup_prices.html' %]
 </div>
 
+<div id="customerprices">
+ [% PROCESS 'part/_customerprices.html' %]
+</div>
 [%- UNLESS SELF.part.is_assembly %]
 <div id="makemodel">
  [% PROCESS 'part/_makemodel.html' %]

@@ -307,7 +307,7 @@ sub create_links {
 
   $form->{$_}        = $saved{$_} for keys %saved;
   $form->{rowcount}  = 1;
-  $form->{AP_chart_id} = $form->{acc_trans} && $form->{acc_trans}->{AP} ? $form->{acc_trans}->{AP}->[0]->{chart_id} : $form->{AP_links}->{AP}->[0]->{chart_id};
+  $form->{AP_chart_id} = $form->{acc_trans} && $form->{acc_trans}->{AP} ? $form->{acc_trans}->{AP}->[0]->{chart_id} : $::instance_conf->get_ap_chart_id || $form->{AP_links}->{AP}->[0]->{chart_id};
 
   # build the popup menus
   $form->{taxincluded} = ($form->{id}) ? $form->{taxincluded} : "checked";
@@ -413,7 +413,7 @@ sub form_header {
     @{ $form->{ALL_CHARTS} }
   );
 
-  $form->{ALL_DEPARTMENTS} = SL::DB::Manager::Department->get_all;
+  $form->{ALL_DEPARTMENTS} = SL::DB::Manager::Department->get_all_sorted;
 
   my %project_labels = ();
   foreach my $item (@{ $form->{"ALL_PROJECTS"} }) {
@@ -437,7 +437,7 @@ sub form_header {
   my $follow_up_vc         = $form->{vendor_id} ? SL::DB::Vendor->load_cached($form->{vendor_id})->name : '';
   my $follow_up_trans_info =  "$form->{invnumber} ($follow_up_vc)";
 
-  $::request->layout->add_javascripts("autocomplete_chart.js", "autocomplete_customer.js", "show_vc_details.js", "show_history.js", "follow_up.js", "kivi.Draft.js", "kivi.GL.js", "kivi.RecordTemplate.js", "kivi.File.js", "kivi.AP.js");
+  $::request->layout->add_javascripts("autocomplete_chart.js", "show_vc_details.js", "show_history.js", "follow_up.js", "kivi.Draft.js", "kivi.GL.js", "kivi.RecordTemplate.js", "kivi.File.js", "kivi.AP.js", "kivi.CustomerVendor.js", "kivi.Validator.js");
   my $transdate = $::form->{transdate} ? DateTime->from_kivitendo($::form->{transdate}) : DateTime->today_local;
   my $first_taxchart;
 
@@ -744,10 +744,11 @@ sub post {
   my ($inline) = @_;
 
   # check if there is a vendor, invoice, due date and invnumber
-  $form->isblank("transdate", $locale->text("Invoice Date missing!"));
-  $form->isblank("duedate",   $locale->text("Due Date missing!"));
-  $form->isblank("vendor_id", $locale->text('Vendor missing!'));
-  $form->isblank("invnumber", $locale->text('Invoice Number missing!'));
+  $form->isblank("transdate",   $locale->text("Invoice Date missing!"));
+  $form->isblank("duedate",     $locale->text("Due Date missing!"));
+  $form->isblank("vendor_id",   $locale->text('Vendor missing!'));
+  $form->isblank("invnumber",   $locale->text('Invoice Number missing!'));
+  $form->isblank("AP_chart_id", $locale->text('No contra account selected!'));
 
   if ($myconfig{mandatory_departments} && !$form->{department_id}) {
     $form->{saved_message} = $::locale->text('You have to specify a department.');
@@ -826,7 +827,11 @@ sub post {
     # no restore_from_session_id needed. we like to have a newly generated
     # list of invoices for bank transactions
     print $form->redirect_header($form->{callback}) if ($form->{callback} =~ /BankTransaction/);
-    $form->redirect($locale->text('AP transaction posted.')) unless $inline;
+    $form->redirect($locale->text('AP transaction posted.') . ' ' . $locale->text('ID') . ': ' . $form->{id}) unless $inline;
+    # TODO Add callback/return flag in myconfig
+    # With version 3.5 we can add documents, but only after posting. there should be a flag in myconfig for the user
+    # $form->{callback} ||= 'ap.pl?action=edit&id=' . $form->{id} if $myconfig{no_reset_arap};
+
   } else {
     $form->error($locale->text('Cannot post transaction!'));
   }
@@ -1163,10 +1168,12 @@ sub setup_ap_search_action_bar {
       action => [
         $::locale->text('Search'),
         submit    => [ '#form', { action => "ap_transactions" } ],
+        checks    => [ 'kivi.validate_form' ],
         accesskey => 'enter',
       ],
     );
   }
+  $::request->layout->add_javascripts('kivi.Validator.js');
 }
 
 sub setup_ap_transactions_action_bar {
@@ -1194,11 +1201,18 @@ sub setup_ap_display_form_action_bar {
   my $closedto                = $::form->datetonum($::form->{closedto},  \%::myconfig);
   my $is_closed               = $transdate <= $closedto;
 
-  my $change_never            = $::instance_conf->get_ar_changeable == 0;
-  my $change_on_same_day_only = $::instance_conf->get_ar_changeable == 2 && ($::form->current_date(\%::myconfig) ne $::form->{gldate});
+  my $change_never            = $::instance_conf->get_ap_changeable == 0;
+  my $change_on_same_day_only = $::instance_conf->get_ap_changeable == 2 && ($::form->current_date(\%::myconfig) ne $::form->{gldate});
 
   my $is_storno               = IS->is_storno(\%::myconfig, $::form, 'ap', $::form->{id});
   my $has_storno              = IS->has_storno(\%::myconfig, $::form, 'ap');
+
+  my $has_sepa_exports;
+
+  if ($::form->{id}) {
+    my $invoice = SL::DB::Manager::PurchaseInvoice->find_by(id => $::form->{id});
+    $has_sepa_exports = 1 if ($invoice->find_sepa_export_items()->[0]);
+  }
 
   for my $bar ($::request->layout->get('actionbar')) {
     $bar->add(
@@ -1206,6 +1220,7 @@ sub setup_ap_display_form_action_bar {
         t8('Update'),
         submit    => [ '#form', { action => "update" } ],
         id        => 'update_button',
+        checks    => [ 'kivi.validate_form' ],
         accesskey => 'enter',
       ],
 
@@ -1213,7 +1228,7 @@ sub setup_ap_display_form_action_bar {
         action => [
           t8('Post'),
           submit   => [ '#form', { action => "post" } ],
-          checks   => [ 'kivi.AP.check_fields_before_posting' ],
+          checks   => [ 'kivi.validate_form', 'kivi.AP.check_fields_before_posting', 'kivi.AP.check_duplicate_invnumber' ],
           disabled => $is_closed                                  ? t8('The billing period has already been locked.')
                     : $is_storno                                  ? t8('A canceled invoice cannot be posted.')
                     : ($::form->{id} && $change_never)            ? t8('Changing invoices has been disabled in the configuration.')
@@ -1223,6 +1238,7 @@ sub setup_ap_display_form_action_bar {
         action => [
           t8('Post Payment'),
           submit   => [ '#form', { action => "post_payment" } ],
+          checks   => [ 'kivi.validate_form' ],
           disabled => !$::form->{id} ? t8('This invoice has not been posted yet.') : undef,
         ],
         action => [ t8('Mark as paid'),
@@ -1236,12 +1252,13 @@ sub setup_ap_display_form_action_bar {
       combobox => [
         action => [ t8('Storno'),
           submit   => [ '#form', { action => "storno" } ],
-          checks   => [ 'kivi.AP.check_fields_before_posting' ],
+          checks   => [ 'kivi.validate_form', 'kivi.AP.check_fields_before_posting' ],
           confirm  => t8('Do you really want to cancel this invoice?'),
           disabled => !$::form->{id}         ? t8('This invoice has not been posted yet.')
                       : $has_storno          ? t8('This invoice has been canceled already.')
                       : $is_storno           ? t8('Reversal invoices cannot be canceled.')
                       : $::form->{totalpaid} ? t8('Invoices with payments cannot be canceled.')
+                      : $has_sepa_exports    ? t8('This invoice has been linked with a sepa export, undo this first.')
                       :                        undef,
         ],
         action => [ t8('Delete'),
@@ -1252,6 +1269,7 @@ sub setup_ap_display_form_action_bar {
                     : $change_on_same_day_only ? t8('Invoices can only be changed on the day they are posted.')
                     : $has_storno              ? t8('This invoice has been canceled already.')
                     : $is_closed               ? t8('The billing period has already been locked.')
+                    : $has_sepa_exports        ? t8('This invoice has been linked with a sepa export, undo this first.')
                     :                            undef,
         ],
       ], # end of combobox "Storno"
@@ -1263,6 +1281,7 @@ sub setup_ap_display_form_action_bar {
         action => [
           t8('Use As New'),
           submit   => [ '#form', { action => "use_as_new" } ],
+          checks   => [ 'kivi.validate_form' ],
           disabled => !$::form->{id} ? t8('This invoice has not been posted yet.') : undef,
         ],
       ], # end of combobox "Workflow"
@@ -1293,4 +1312,5 @@ sub setup_ap_display_form_action_bar {
       ], # end of combobox "more"
     );
   }
+  $::request->layout->add_javascripts('kivi.Validator.js');
 }

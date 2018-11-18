@@ -9,13 +9,14 @@ use SL::DB::Business;
 use SL::Controller::Helper::GetModels;
 use SL::Controller::Helper::ReportGenerator;
 use SL::Locale::String;
+use SL::Helper::ShippedQty;
 use SL::AM;
 use SL::DBUtils ();
 use Carp;
 
 use Rose::Object::MakeMethods::Generic (
   scalar => [ qw(db_args flat_filter) ],
-  'scalar --get_set_init' => [ qw(models all_edit_right vc use_linked_items all_employees all_businesses) ],
+  'scalar --get_set_init' => [ qw(models all_edit_right vc use_linked_items all_employees all_businesses all_departments) ],
 );
 
 __PACKAGE__->run_before(sub { $::auth->assert('delivery_plan'); });
@@ -26,7 +27,6 @@ my %sort_columns = (
   partnumber        => t8('Part Number'),
   qty               => t8('Qty'),
   shipped_qty       => t8('shipped'),
-  delivered_qty     => t8('transferred in / out'),
   not_shipped_qty   => t8('not shipped'),
   ordnumber         => t8('Order'),
   customer          => t8('Customer'),
@@ -54,7 +54,7 @@ sub prepare_report {
   my $report      = SL::ReportGenerator->new(\%::myconfig, $::form);
   $self->{report} = $report;
 
-  my @columns     = qw(reqdate customer vendor ordnumber partnumber description qty shipped_qty not_shipped_qty delivered_qty);
+  my @columns     = qw(reqdate customer vendor ordnumber partnumber description qty shipped_qty not_shipped_qty);
 
   my @sortable    = qw(reqdate customer vendor ordnumber partnumber description);
 
@@ -67,7 +67,6 @@ sub prepare_report {
     qty               => {      sub => sub { $_[0]->qty_as_number . ' ' . $_[0]->unit                                        } },
     shipped_qty       => {      sub => sub { $::form->format_amount(\%::myconfig, $_[0]{shipped_qty}, 2) . ' ' . $_[0]->unit } },
     not_shipped_qty   => {      sub => sub { $::form->format_amount(\%::myconfig, $_[0]->qty - $_[0]{shipped_qty}, 2) . ' ' . $_[0]->unit } },
-    delivered_qty     => {      sub => sub { $::form->format_amount(\%::myconfig, $_[0]{delivered_qty}, 2) .' ' . $_[0]->unit } },
     ordnumber         => {      sub => sub { $_[0]->order->ordnumber                                                         },
                            obj_link => sub { $self->link_to($_[0]->order)                                                    } },
     vendor            => {      sub => sub { $_[0]->order->vendor->name                                                      },
@@ -105,71 +104,26 @@ sub prepare_report {
 
 sub calc_qtys {
   my ($self, $orderitems) = @_;
-  # using $orderitem->shipped_qty 40 times is far too slow. need to do it manually
-  #
 
   return unless scalar @$orderitems;
 
-  my %orderitems_by_id = map { $_->id => $_ } @$orderitems;
-
-  my $query = $self->use_linked_items ? _calc_qtys_query_linked_items(scalar @$orderitems)
-            :                           _calc_qtys_query_match_parts(scalar @$orderitems);
-
-  my $result = SL::DBUtils::selectall_hashref_query($::form, $::form->get_standard_dbh, $query, map { $_->id } @$orderitems);
-
-  for my $row (@$result) {
-    my $item = $orderitems_by_id{ $row->{id} };
-    $item->{shipped_qty}   ||= 0;
-    $item->{delivered_qty} ||= 0;
-    $item->{shipped_qty}    += AM->convert_unit($row->{unit} => $item->unit) * $row->{qty};
-    $item->{delivered_qty}  += AM->convert_unit($row->{unit} => $item->unit) * $row->{qty} if $row->{delivered};
-  }
-}
-
-sub _calc_qtys_query_match_parts {
-  my ($num_items) = @_;
-
-  my $query = <<SQL;
-    SELECT oi.id, doi.qty, doi.unit, doe.delivered
-    FROM record_links rl
-    INNER JOIN delivery_order_items doi ON (doi.delivery_order_id = rl.to_id)
-    INNER JOIN delivery_orders doe ON (doe.id = rl.to_id)
-    INNER JOIN orderitems oi ON (oi.trans_id = rl.from_id)
-    WHERE rl.from_table = 'oe'
-      AND rl.to_table   = 'delivery_orders'
-      AND oi.parts_id   = doi.parts_id
-      AND oi.id IN (@{[ join ', ', ("?")x $num_items ]})
-SQL
-
-  return $query;
-}
-
-sub _calc_qtys_query_linked_items {
-  my ($num_items) = @_;
-
-  my $query = <<SQL;
-    SELECT rl.from_id as id, doi.qty, doi.unit, doe.delivered
-    FROM record_links rl
-    INNER JOIN delivery_order_items doi ON (doi.id = rl.to_id)
-    INNER JOIN delivery_orders doe ON (doe.id = doi.delivery_order_id)
-    WHERE rl.from_table LIKE 'orderitems'
-      AND rl.to_table   LIKE 'delivery_order_items'
-      AND rl.from_id IN (@{[ join ', ', ("?")x $num_items ]})
-SQL
-
-  return $query;
+  SL::Helper::ShippedQty
+    ->new(fill_up => !$self->use_linked_items)
+    ->calculate($orderitems)
+    ->write_to_objects;
 }
 
 sub make_filter_summary {
   my ($self) = @_;
   my $vc     = $self->vc;
-  my ($business, $employee);
+  my ($business, $employee, $department);
 
   my $filter = $::form->{filter} || {};
   my @filter_strings;
 
   $business = SL::DB::Business->new(id => $filter->{order}{customer}{"business_id"})->load->description if $filter->{order}{customer}{"business_id"};
   $employee = SL::DB::Employee->new(id => $filter->{order}{employee_id})->load->name if $filter->{order}{employee_id};
+  $department = SL::DB::Department->new(id => $filter->{order}{department_id})->load->description if $filter->{order}{department_id};
 
   my @filters = (
     [ $filter->{order}{"ordnumber:substr::ilike"},                    $::locale->text('Number')                                             ],
@@ -184,6 +138,7 @@ sub make_filter_summary {
     [ $filter->{order}{customer}{"name:substr::ilike"},               $::locale->text('Customer')                                           ],
     [ $filter->{order}{customer}{"customernumber:substr::ilike"},     $::locale->text('Customer Number')                                    ],
     [ $business,                                                      $::locale->text('Customer type')                                      ],
+    [ $department,                                                    $::locale->text('Department')                                         ],
     [ $employee,                                                      $::locale->text('Employee')                                           ],
   );
 
@@ -400,6 +355,9 @@ sub init_all_employees {
 sub init_all_businesses {
   return SL::DB::Manager::Business->get_all_sorted;
 }
+sub init_all_departments {
+  return SL::DB::Manager::Department->get_all_sorted;
+}
 sub link_to {
   my ($self, $object, %params) = @_;
 
@@ -411,7 +369,11 @@ sub link_to {
     my $vc     = $object->is_sales ? 'customer' : 'vendor';
     my $id     = $object->id;
 
-    return "oe.pl?action=$action&type=$type&vc=$vc&id=$id";
+    if ($::instance_conf->get_feature_experimental_order) {
+      return "controller.pl?action=Order/$action&type=$type&id=$id";
+    } else {
+      return "oe.pl?action=$action&type=$type&vc=$vc&id=$id";
+    }
   }
   if ($object->isa('SL::DB::Part')) {
     my $id     = $object->id;

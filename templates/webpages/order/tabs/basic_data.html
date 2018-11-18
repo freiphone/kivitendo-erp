@@ -2,6 +2,7 @@
 [%- USE HTML %]
 [%- USE LxERP %]
 [%- USE L %]
+[%- USE P %]
 
 [%- INCLUDE 'generic/set_longdescription.html' %]
 
@@ -11,9 +12,12 @@
       <td>
         <table width="100%">
           <tr>
-            <th align="right">[% SELF.cv | $T8 %]</th>
+            <th align="right">[%- SELF.cv == "customer" ? LxERP.t8('Customer') : LxERP.t8('Vendor') -%]</th>
             [% SET cv_id = SELF.cv _ '_id' %]
-            <td>[% L.customer_vendor_picker("order.${SELF.cv}" _ '_id', SELF.order.$cv_id, type=SELF.cv, style='width: 300px') %]</td>
+            <td>
+              [% P.customer_vendor.picker("order.${SELF.cv}" _ '_id', SELF.order.$cv_id, type=SELF.cv, style='width: 300px') %]
+              [% P.button_tag("kivi.Order.show_vc_details_dialog()", LxERP.t8("Details (one letter abbreviation)")) %]
+            </td>
           </tr>
 
           <tr id='cp_row' [%- IF !SELF.order.${SELF.cv}.contacts.size %]style='display:none'[%- END %]>
@@ -37,6 +41,8 @@
                                 with_empty=1,
                                 style='width: 300px') %]</td>
           </tr>
+
+          [%- PROCESS order/tabs/_business_info_row.html SELF=SELF %]
 
           <tr>
             <th align="right">[% 'Steuersatz' | $T8 %]</th>
@@ -69,7 +75,7 @@
 
           <tr>
             <th align="right">[% 'Project Number' | $T8 %]</th>
-            <td>[% L.project_picker('order.globalproject_id', SELF.order.globalproject_id, style='width: 300px') %]</td>
+            <td>[% P.project.picker('order.globalproject_id', SELF.order.globalproject_id, style='width: 300px') %]</td>
           </tr>
 
         </table>
@@ -107,30 +113,68 @@
           </tr>
           [% END %]
 
+          [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
           <tr>
             <th width="70%" align="right" nowrap>[% 'Order Number' | $T8 %]</th>
-            <td>[% L.input_tag('order.ordnumber', SELF.order.ordnumber, size = 11) %]</td>
+            <td>[% L.input_tag('order.ordnumber', SELF.order.ordnumber, size = 11, onchange='kivi.Order.set_number_in_title(this)') %]</td>
           </tr>
+          [%- END -%]
 
+          [%- IF (SELF.type == "sales_order" || SELF.type == "sales_quotation") -%]
+            [%- SET quo_nr_txt = 'Quotation Number' -%]
+          [%- ELSE -%]
+            [%- SET quo_nr_txt = 'RFQ Number' -%]
+          [%- END -%]
           <tr>
-            <th width="70%" align="right" nowrap>[% 'Quotation Number' | $T8 %]</th>
-            <td>[% L.input_tag('order.quonumber', SELF.order.quonumber, size = 11) %]</td>
+            <th width="70%" align="right" nowrap>[% quo_nr_txt | $T8 %]</th>
+            [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
+              <td>[% L.input_tag('order.quonumber', SELF.order.quonumber, size = 11) %]</td>
+            [%- ELSE -%]
+              <td>[% L.input_tag('order.quonumber', SELF.order.quonumber, size = 11, onchange='kivi.Order.set_number_in_title(this)') %]</td>
+            [%- END -%]
           </tr>
 
+          [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
           <tr>
             <th width="70%" align="right" nowrap>[% 'Customer Order Number' | $T8 %]</th>
             <td>[% L.input_tag('order.cusordnumber', SELF.order.cusordnumber, size = 11) %]</td>
           </tr>
+          [%- END -%]
 
+          [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
+            [%- SET transdate_txt = 'Order Date' -%]
+          [%- ELSIF SELF.type == "sales_quotation" -%]
+            [%- SET transdate_txt = 'Quotation Date' -%]
+          [%- ELSE -%]
+            [%- SET transdate_txt = 'RFQ Date' -%]
+          [%- END -%]
           <tr>
-            <th width="70%" align="right" nowrap>[% 'Order Date' | $T8 %]</th>
-            <td>[% L.date_tag('order.transdate', SELF.order.transdate) %]</td>
+            <th width="70%" align="right" nowrap>[% transdate_txt | $T8 %]</th>
+            <td>[% L.date_tag('order.transdate_as_date', SELF.order.transdate_as_date) %]</td>
           </tr>
 
+          [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
+            [%- SET reqdate_txt = 'Reqdate' -%]
+          [%- ELSIF SELF.type == "sales_quotation" -%]
+            [%- SET reqdate_txt = 'Valid until' -%]
+          [%- ELSE -%]
+            [%- SET reqdate_txt = 'Required by' -%]
+          [%- END -%]
           <tr>
-            <th width="70%" align="right" nowrap>[% 'Reqdate' | $T8 %]</th>
-            <td>[% L.date_tag('order.reqdate', SELF.order.reqdate) %]</td>
+            <th width="70%" align="right" nowrap>[% reqdate_txt | $T8 %]</th>
+            <td>[% L.date_tag('order.reqdate_as_date', SELF.order.reqdate_as_date) %]</td>
           </tr>
+
+          [%- IF SELF.type == "sales_quotation" -%]
+          <tr>
+            <th width="70%" align="right" nowrap>[% 'Order probability' | $T8 %]</th>
+            <td>[%- L.select_tag('order.order_probability', SELF.order_probabilities, title='title', default=SELF.order.order_probability) %]%</td>
+          </tr>
+          <tr>
+            <th width="70%" align="right" nowrap>[% 'Expected billing date' | $T8 %]</th>
+            <td>[%- L.date_tag('order.expected_billing_date_as_date', SELF.order.expected_billing_date_sa_date) %]</td>
+          </tr>
+          [%- END %]
 
           <tr>
             <th width="70%" align="right" nowrap>[% 'Insert Date' | $T8 %]</th>
@@ -168,6 +212,9 @@
                 <th id="partnumber_header_id"  class="listheading" nowrap width="15"><a href='#' onClick='javascript:kivi.Order.reorder_items("partnumber")'> [%- 'Partnumber'  | $T8 %]</a></th>
                 <th id="partclass_header_id"   class="listheading" nowrap width="2">[%- 'Type'  | $T8 %]</th>
                 <th id="description_header_id" class="listheading" nowrap           ><a href='#' onClick='javascript:kivi.Order.reorder_items("description")'>[%- 'Description' | $T8 %]</a></th>
+                [%- IF (SELF.type == "sales_order" || SELF.type == "purchase_order") -%]
+                <th id="shipped_qty_header_id" class="listheading" nowrap width="5" ><a href='#' onClick='javascript:kivi.Order.reorder_items("shipped_qty")'>[%- 'Delivered'   | $T8 %]</a></th>
+                [%- END -%]
                 <th id="qty_header_id"         class="listheading" nowrap width="5" ><a href='#' onClick='javascript:kivi.Order.reorder_items("qty")'>        [%- 'Qty'         | $T8 %]</a></th>
                 <th class="listheading" nowrap width="5" >[%- 'Price Factor' | $T8 %] </th>
                 <th class="listheading" nowrap width="5" >[%- 'Unit'         | $T8 %] </th>
@@ -179,7 +226,7 @@
             </thead>
 
             [%- FOREACH item = SELF.order.items_sorted %]
-              [%- PROCESS order/tabs/_row.html ITEM=item ID=item.id ALL_PRICE_FACTORS=SELF.all_price_factors %]
+              [%- PROCESS order/tabs/_row.html ITEM=item ID=(item.id||item.new_fake_id) TYPE=SELF.type ALL_PRICE_FACTORS=SELF.all_price_factors %]
             [%- END %]
 
           </table>
@@ -232,8 +279,38 @@
                                       title_key = 'description',
                                       style = 'width: 250px') %]</td>
                 </tr>
+                [%- IF SELF.type == "sales_order" %]
+                <tr>
+                  <th align="right">[%- 'Periodic Invoices' | $T8 %]</th>
+                  <td>[% L.button_tag('kivi.Order.show_periodic_invoices_config_dialog()', LxERP.t8('Configure')) %]
+                    (<span id='periodic_invoices_status'>[%- SELF.periodic_invoices_status -%]</span>)
+                    <a href="doc/html/ch03.html#features.periodic-invoices.variables" target="_blank">?</a>
+                  </td>
+                </tr>
+                [%- END %]
               </table>
             </td>
+
+            [%- IF (SELF.type == "sales_order" || SELF.type == "sales_quotation") -%]
+            [%- SET marge_class = (SELF.order.marge_total < 0) ? 'plus0' : '' -%]
+            <td>
+              <table>
+                <tr>
+                  <th  align="left">[% 'Ertrag' | $T8 %]</th>
+                  <td align="right">
+                    [%- L.div_tag(SELF.order.marge_total_as_number, id='marge_total_id', class=marge_class) %]
+                  </td>
+                </tr>
+                <tr>
+                  <th  align="left">[% 'Ertrag prozentual' | $T8 %]</th>
+                  <td align="right">
+                    [%- L.div_tag(LxERP.format_amount(SELF.order.marge_percent, 2), id='marge_percent_id', class=marge_class) %]
+                  </td>
+                  <td>[%- L.div_tag('%', id='marge_percent_sign_id', class=marge_class) %]</td>
+                </tr>
+              </table>
+            </td>
+            [%- END %]
 
             <td align="right">
               <table>

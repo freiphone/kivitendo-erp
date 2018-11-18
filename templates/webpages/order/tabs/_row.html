@@ -15,6 +15,7 @@
                      alt=LxERP.t8('Show details'), title=LxERP.t8('Show details'), class="expand") %]
       [%- END %]
       [% L.hidden_tag("orderitem_ids[+]", ID) %]
+      [% L.hidden_tag("converted_from_orderitems_ids[+]", ITEM.converted_from_orderitems_id) %]
       [% L.hidden_tag("order.orderitems[+].id", ITEM.id, id='item_' _ ID) %]
       [% L.hidden_tag("order.orderitems[].parts_id", ITEM.parts_id) %]
     </td>
@@ -35,19 +36,32 @@
       <div name="partnumber">[% HTML.escape(ITEM.part.partnumber) %]</div>
     </td>
     <td>
-      <div name="partclassification">[% P.typeclass_abbreviation(ITEM.part) %]</div>
+      <div name="partclassification">[% ITEM.part.presenter.typeclass_abbreviation %]</div>
     </td>
     <td>
-      [% L.input_tag("order.orderitems[].description",
+      [% L.areainput_tag("order.orderitems[].description",
                      ITEM.description,
+                     size='40',
                      style='width: 300px') %]
+      [%- IF ITEM.render_longdescription -%]
+        [%- L.hidden_tag("order.orderitems[].longdescription", ITEM.longdescription) %]
+      [%- END -%]
       [%- L.button_tag("kivi.Order.show_longdescription_dialog(this)", LxERP.t8("L")) %]
     </td>
-    <td>
+    [%- IF (TYPE == "sales_order" || TYPE == "purchase_order") -%]
+    <td nowrap>
+      [%- L.div_tag(LxERP.format_amount(ITEM.shipped_qty, 2, 0) _ ' ' _ ITEM.unit, name="shipped_qty", class="numeric") %]
+    </td>
+    [%- END -%]
+    <td nowrap>
       [%- L.input_tag("order.orderitems[].qty_as_number",
                       ITEM.qty_as_number,
                       size = 5,
                       class="recalc reformat_number numeric") %]
+      [%- IF ITEM.part.formel -%]
+        [%- L.button_tag("kivi.Order.show_calculate_qty_dialog(this)", LxERP.t8("*/")) %]
+        [%- L.hidden_tag("formula[+]", ITEM.part.formel) -%]
+      [%- END -%]
     </td>
     <td>
       [%- L.select_tag("order.orderitems[].price_factor_id",
@@ -112,9 +126,9 @@
 
   <tr [%- IF !MYCONFIG.show_form_details -%]style="display:none"[%- END -%]>
     <td colspan="100%">
-      [%- IF MYCONFIG.show_form_details %]
+      [%- IF MYCONFIG.show_form_details || ITEM.render_second_row %]
         <div name="second_row" data-loaded="1">
-          [%- PROCESS order/tabs/_second_row.html ITEM=ITEM %]
+          [%- PROCESS order/tabs/_second_row.html ITEM=ITEM TYPE=TYPE %]
         </div>
       [%- ELSE %]
         <div name="second_row">

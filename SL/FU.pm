@@ -246,6 +246,10 @@ sub follow_ups {
     $where .= qq| AND (date_trunc('DAY', fu.itime) <= ?)|;
     push @values, conv_date($params{itime_to});
   }
+  if ($params{created_for}) {
+    $where .= qq| AND fu.created_for_user = ?|;
+    push @values, conv_i($params{created_for});
+  }
 
   if ($params{all_users}) {
     $where_user = qq|OR (fu.created_by IN (SELECT DISTINCT what FROM follow_up_access WHERE who = ?))|;
@@ -332,8 +336,14 @@ sub link_details {
     };
 
   } elsif ($params{trans_type} eq 'sales_quotation') {
+    my $script = 'oe.pl';
+    my $action = 'edit';
+    if ($::instance_conf->get_feature_experimental_order) {
+      $script = 'controller.pl';
+      $action = 'Order/edit';
+    }
     $link = {
-      'url'   => 'oe.pl?action=edit&type=sales_quotation&id=' . $params{trans_id},
+      'url'   => $script . '?action=' . $action . '&type=sales_quotation&id=' . $params{trans_id},
       'title' => $locale->text('Sales quotation') . " $params{trans_info}",
     };
 
@@ -352,8 +362,14 @@ sub link_details {
     };
 
   } elsif ($params{trans_type} eq 'sales_order') {
+    my $script = 'oe.pl';
+    my $action = 'edit';
+    if ($::instance_conf->get_feature_experimental_order) {
+      $script = 'controller.pl';
+      $action = 'Order/edit';
+    }
     $link = {
-      'url'   => 'oe.pl?action=edit&type=sales_order&id=' . $params{trans_id},
+      'url'   => $script . '?action=' . $action . '&type=sales_order&id=' . $params{trans_id},
       'title' => $locale->text('Sales Order') . " $params{trans_info}",
     };
 
@@ -382,14 +398,26 @@ sub link_details {
     };
 
   } elsif ($params{trans_type} eq 'request_quotation') {
+    my $script = 'oe.pl';
+    my $action = 'edit';
+    if ($::instance_conf->get_feature_experimental_order) {
+      $script = 'controller.pl';
+      $action = 'Order/edit';
+    }
     $link = {
-      'url'   => 'oe.pl?action=edit&type=request_quotation&id=' . $params{trans_id},
+      'url'   => $script . '?action=' . $action . '&type=request_quotation&id=' . $params{trans_id},
       'title' => $locale->text('Request quotation') . " $params{trans_info}",
     };
 
   } elsif ($params{trans_type} eq 'purchase_order') {
+    my $script = 'oe.pl';
+    my $action = 'edit';
+    if ($::instance_conf->get_feature_experimental_order) {
+      $script = 'controller.pl';
+      $action = 'Order/edit';
+    }
     $link = {
-      'url'   => 'oe.pl?action=edit&type=purchase_order&id=' . $params{trans_id},
+      'url'   => $script . '?action=' . $action . '&type=purchase_order&id=' . $params{trans_id},
       'title' => $locale->text('Purchase Order') . " $params{trans_info}",
     };
 

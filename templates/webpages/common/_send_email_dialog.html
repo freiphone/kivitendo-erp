@@ -50,7 +50,9 @@
   </tr>
 
   <tr valign="top">
-   <th align="right" nowrap>[% LxERP.t8("Message") %]</th>
+   <th align="right" nowrap>[% LxERP.t8("Message") %]
+    <sup> [% L.link("generictranslations.pl?action=edit_email_strings", "1)", title=LxERP.t8('Tired of copying always nice phrases for this message? Click here to use the new preset message option!'), target="_blank") %]</sup>
+  </th>
    <td>[% L.textarea_tag("email_form.message", email_form.message, rows="15" cols="80" wrap="soft") %]</td>
   </tr>
 
@@ -97,6 +99,6 @@
 <div id="email_form_print_options"></div>
 
 <p>
- [% L.button_tag("kivi.SalesPurchase.send_email()", LxERP.t8("Send email")) %]
+ [% L.button_tag(email_form.js_send_function, LxERP.t8("Send email")) %]
  [% L.button_tag("\$('#send_email_dialog').dialog('close');", LxERP.t8("Abort")) %]
 </p>

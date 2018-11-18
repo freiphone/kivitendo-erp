@@ -11,7 +11,9 @@
 #          ( ) & | are supported.  if binary operator is missing the last
 #          operator in same scope is repeated, or "|" if none used in scope
 #          yet. client config entries can be used as rights by prefixing them
-#          with "client/". If missing, access will be granted.
+#          with "client/".
+#          ! is supported to negate the subsequent expression.
+#          If missing, access will be granted.
 #
 #          Example:
 #            client/feature_default_enabled | ( feature & system )
@@ -367,6 +369,27 @@
   params:
     action: Letter/list
     is_sales: 1
+- id: webshop
+  name: Webshop
+  order: 250
+- parent: webshop
+  id: webshop_import
+  name: Webshop Import
+  access: shop_order
+  params:
+    action: ShopOrder/list
+    filter.transferred:eq_ignore_empty: 0
+    filter.obsolete: 0
+    db: shop_orders
+    sort_by: shop_ordernumber
+- parent: webshop
+  id: webshop_articles
+  name: Webshop articles
+  access: shop_part_edit
+  params:
+    action: ShopPart/list_articles
+    db: shop_parts
+    sort_by: part.onhand
 - id: ap
   name: AP
   icon: ap
@@ -523,6 +546,13 @@
     action: transfer_warehouse_selection
     trans_type: removal
 - parent: warehouse
+  id: warehouse_stocktaking
+  name: Stocktaking
+  order: 450
+  access: warehouse_management
+  params:
+    action: Inventory/stocktaking
+- parent: warehouse
   id: warehouse_reports
   name: Reports
   order: 500
@@ -550,6 +580,13 @@
   access: warehouse_contents | warehouse_management
   params:
     action: Inventory/stock_usage
+- parent: warehouse_reports
+  id: warehouse_stocktaking_journal
+  name: Stocktaking Journal
+  order: 400
+  access: warehouse_contents | warehouse_management
+  params:
+    action: Inventory/stocktaking_journal
 - id: general_ledger
   name: General Ledger
   icon: gl
@@ -685,10 +722,21 @@
     action: bank_transfer_add
     vc: vendor
 - parent: cash
-  id: cash_bank_import
+  id: cash_bank_import_menu
   name: Bank Import
   order: 500
   access: bank_transaction
+- parent: cash_bank_import_menu
+  id: cash_bank_import_csv
+  name: Custom CSV format
+  order: 100
+  params:
+    action: CsvImport/new
+    profile.type: bank_transactions
+- parent: cash_bank_import_menu
+  id: cash_bank_import_mt940
+  name: SWIFT MT940 format
+  order: 200
   params:
     action: BankImport/upload_mt940
 - parent: cash
@@ -1039,6 +1087,12 @@
   module: am.pl
   params:
     action: list_account
+- parent: system_chart_of_accounts
+  id: system_chart_of_accounts_report_configuration_overview
+  name: Report configuration overview
+  order: 300
+  params:
+    action: Chart/show_report_configuration_overview
 - parent: system
   id: system_buchungsgruppen
   name: Booking groups
@@ -1200,6 +1254,13 @@
   module: generictranslations.pl
   params:
     action: edit_sepa_strings
+- parent: system_languages_and_translations
+  id: system_languages_and_translations_email_strings
+  name: Preset email strings
+  order: 500
+  module: generictranslations.pl
+  params:
+    action: edit_email_strings
 - parent: system
   id: system_payment_terms
   name: Payment Terms
@@ -1225,6 +1286,13 @@
   module: am.pl
   params:
     action: list_warehouses
+- parent: system
+  id: system_shops
+  name: Web shops
+  order: 2350
+  access: edit_shop_config
+  params:
+    action: Shop/list
 - parent: system
   id: system_import_csv
   name: Import CSV
@@ -1285,13 +1353,6 @@
   params:
     action: CsvImport/new
     profile.type: ar_transactions
-- parent: system_import_csv
-  id: cash_bank_import_csv
-  name: Bank transactions
-  order: 900
-  params:
-    action: CsvImport/new
-    profile.type: bank_transactions
 - parent: system
   id: system_templates
   name: Templates

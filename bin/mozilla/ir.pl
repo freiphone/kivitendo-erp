@@ -220,12 +220,22 @@ sub setup_ir_action_bar {
   my $form                    = $::form;
   my $change_never            = $::instance_conf->get_ir_changeable == 0;
   my $change_on_same_day_only = $::instance_conf->get_ir_changeable == 2 && ($form->current_date(\%::myconfig) ne $form->{gldate});
+  my $has_storno              = ($::form->{storno} && !$::form->{storno_id});
+  my $payments_balanced       = ($::form->{oldtotalpaid} == 0);
+
+  my $has_sepa_exports;
+
+  if ($form->{id}) {
+    my $invoice = SL::DB::Manager::PurchaseInvoice->find_by(id => $form->{id});
+    $has_sepa_exports = 1 if ($invoice->find_sepa_export_items()->[0]);
+  }
 
   for my $bar ($::request->layout->get('actionbar')) {
     $bar->add(
       action => [
         t8('Update'),
         submit    => [ '#form', { action => "update" } ],
+        checks    => [ 'kivi.validate_form' ],
         id        => 'update_button',
         accesskey => 'enter',
       ],
@@ -234,6 +244,9 @@ sub setup_ir_action_bar {
         action => [
           t8('Post'),
           submit   => [ '#form', { action => "post" } ],
+          checks   => [ 'kivi.validate_form' ],
+          checks   => [ 'kivi.validate_form', 'kivi.AP.check_fields_before_posting', 'kivi.AP.check_duplicate_invnumber' ],
+
           disabled => $form->{locked}                           ? t8('The billing period has already been locked.')
                     : $form->{storno}                           ? t8('A canceled invoice cannot be posted.')
                     : ($form->{id} && $change_never)            ? t8('Changing invoices has been disabled in the configuration.')
@@ -243,11 +256,13 @@ sub setup_ir_action_bar {
         action => [
           t8('Post Payment'),
           submit   => [ '#form', { action => "post_payment" } ],
+          checks   => [ 'kivi.validate_form' ],
           disabled => !$form->{id} ? t8('This invoice has not been posted yet.') : undef,
         ],
         action => [
           t8('Mark as paid'),
           submit   => [ '#form', { action => "mark_as_paid" } ],
+          checks   => [ 'kivi.validate_form' ],
           confirm  => t8('This will remove the invoice from showing as unpaid even if the unpaid amount does not match the amount. Proceed?'),
           disabled => !$form->{id} ? t8('This invoice has not been posted yet.') : undef,
           only_if  => $::instance_conf->get_ir_show_mark_as_paid,
@@ -257,16 +272,23 @@ sub setup_ir_action_bar {
       combobox => [
         action => [ t8('Storno'),
           submit   => [ '#form', { action => "storno" } ],
+          checks   => [ 'kivi.validate_form' ],
           confirm  => t8('Do you really want to cancel this invoice?'),
-          disabled => !$form->{id} ? t8('This invoice has not been posted yet.') : undef,
+          disabled => !$form->{id}          ? t8('This invoice has not been posted yet.')
+                      : $has_sepa_exports   ? t8('This invoice has been linked with a sepa export, undo this first.')
+                      : !$payments_balanced ? t8('Cancelling is disallowed. Either undo or balance the current payments until the open amount matches the invoice amount')
+                      : undef,
         ],
         action => [ t8('Delete'),
           submit   => [ '#form', { action => "delete" } ],
+          checks   => [ 'kivi.validate_form' ],
           confirm  => t8('Do you really want to delete this object?'),
           disabled => !$form->{id}             ? t8('This invoice has not been posted yet.')
                     : $form->{locked}          ? t8('The billing period has already been locked.')
                     : $change_never            ? t8('Changing invoices has been disabled in the configuration.')
                     : $change_on_same_day_only ? t8('Invoices can only be changed on the day they are posted.')
+                    : $has_sepa_exports        ? t8('This invoice has been linked with a sepa export, undo this first.')
+                    : $has_storno              ? t8('Can only delete the "Storno zu" part of the cancellation pair.')
                     :                            undef,
         ],
       ], # end of combobox "Storno"
@@ -278,6 +300,7 @@ sub setup_ir_action_bar {
         action => [
           t8('Use As New'),
           submit   => [ '#form', { action => "use_as_new" } ],
+          checks   => [ 'kivi.validate_form' ],
           disabled => !$form->{id} ? t8('This invoice has not been posted yet.') : undef,
         ],
        ], # end of combobox "Workflow"
@@ -304,6 +327,8 @@ sub setup_ir_action_bar {
       ], # end of combobox "more"
     );
   }
+  $::request->layout->add_javascripts('kivi.Validator.js', 'kivi.AP.js');
+
 }
 
 sub form_header {
@@ -321,8 +346,11 @@ sub form_header {
 
   $TMPL_VAR{invoice_obj} = SL::DB::PurchaseInvoice->load_cached($form->{id}) if $form->{id};
   $TMPL_VAR{vendor_obj}  = SL::DB::Vendor->load_cached($form->{vendor_id})   if $form->{vendor_id};
-  $form->{employee_id} = $form->{old_employee_id} if $form->{old_employee_id};
-  $form->{salesman_id} = $form->{old_salesman_id} if $form->{old_salesman_id};
+  my $current_employee   = SL::DB::Manager::Employee->current;
+  $form->{employee_id}   = $form->{old_employee_id} if $form->{old_employee_id};
+  $form->{salesman_id}   = $form->{old_salesman_id} if $form->{old_salesman_id};
+  $form->{employee_id} ||= $current_employee->id;
+  $form->{salesman_id} ||= $current_employee->id;
 
   $form->{defaultcurrency} = $form->get_default_currency(\%myconfig);
 
@@ -367,7 +395,6 @@ sub form_header {
     $form->{"select$item"} =~ s/option>\Q$form->{$item}\E/option selected>$form->{$item}/;
   }
 
-  $TMPL_VAR{is_type_credit_note} = $form->{type}   eq "credit_note";
   $TMPL_VAR{is_format_html}      = $form->{format} eq 'html';
   $TMPL_VAR{dateformat}          = $myconfig{dateformat};
   $TMPL_VAR{numberformat}        = $myconfig{numberformat};
@@ -386,7 +413,7 @@ sub form_header {
   $TMPL_VAR{payment_terms_obj} = get_payment_terms_for_invoice();
   $form->{duedate}             = $TMPL_VAR{payment_terms_obj}->calc_date(reference_date => $form->{invdate}, due_date => $form->{duedate})->to_kivitendo if $TMPL_VAR{payment_terms_obj};
 
-  $::request->{layout}->use_javascript(map { "${_}.js" } qw(kivi.Draft kivi.File  kivi.SalesPurchase kivi.Part ckeditor/ckeditor ckeditor/adapters/jquery kivi.io autocomplete_customer autocomplete_project client_js));
+  $::request->{layout}->use_javascript(map { "${_}.js" } qw(kivi.Draft kivi.File kivi.SalesPurchase kivi.Part kivi.CustomerVendor kivi.Validator ckeditor/ckeditor ckeditor/adapters/jquery kivi.io autocomplete_project client_js));
 
   setup_ir_action_bar();
 
@@ -499,7 +526,6 @@ sub form_footer {
   $form->{ALL_DELIVERY_TERMS} = SL::DB::Manager::DeliveryTerm->get_all_sorted();
 
   print $form->parse_html_template('ir/form_footer', {
-    is_type_credit_note => ($form->{type} eq "credit_note"),
     totalpaid           => $totalpaid,
     paid_missing        => $form->{invtotal} - $totalpaid,
     show_storno         => $form->{id} && !$form->{storno} && !IS->has_storno(\%myconfig, $form, "ap") && !$totalpaid,
@@ -875,6 +901,8 @@ sub post {
     $form->{callback} = 'ir.pl?action=add';
     $form->redirect(  $locale->text('Invoice')
                   . " $form->{invnumber} "
+                  . ", " . $locale->text('ID')
+                  . ': ' . $form->{id} . ' '
                   . $locale->text('posted!'));
   }
   $form->error($locale->text('Cannot post invoice!'));

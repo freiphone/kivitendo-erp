@@ -36,7 +36,7 @@ sub flatten_to_form {
   $form->{vc} = $vc if ref($self) =~ m{^SL::DB::(?:.*Invoice|.*Order)};
 
   my @vc_fields          = (qw(account_number bank bank_code bic business city contact country creditlimit
-                               department_1 department_2 discount email fax gln homepage iban language name
+                               department_1 department_2 discount email fax gln greeting homepage iban language name
                                phone street taxnumber ustid zipcode),
                             "${vc}number",
                             ($vc eq 'customer')? 'c_vendor_id': 'v_customer_id');
@@ -52,10 +52,8 @@ sub flatten_to_form {
   _copy($self->salesman,                $form, 'salesman_',     '', 0, map { $_->name } SL::DB::Employee->meta->columns)                   if _has($self, 'salesman_id');
   _copy($self->acceptance_confirmed_by, $form, 'acceptance_confirmed_by_', '', 0, map { $_->name } SL::DB::Employee->meta->columns)        if _has($self, 'acceptance_confirmed_by_id');
 
-  if (_has($self, 'employee_id')) {
-    my $user = User->new(login => $self->employee->login);
-    $form->{"employee_$_"} = $user->{$_} for qw(tel email fax);
-  }
+  _handle_user_data($self, $form);
+
   # company is employee and login independent
   $form->{"${_}_company"}  = $::instance_conf->get_company for qw (employee salesman);
 
@@ -107,6 +105,7 @@ sub flatten_to_form {
   }
 
   _copy_custom_variables($self, $form, 'vc_cvar_', '', $cvar_validity{vc});
+  _copy_custom_variables($self->contact, $form, 'cp_cvar_', '') if $self->contact;
 
   return $self;
 }
@@ -133,7 +132,7 @@ sub _copy {
 sub _copy_custom_variables {
   my ($src, $form, $prefix, $postfix, $cvar_validity) = @_;
 
-  my $obj = (any { ref($src) eq $_ } qw(SL::DB::OrderItem SL::DB::DeliveryOrderItem SL::DB::InvoiceItem))
+  my $obj = (any { ref($src) eq $_ } qw(SL::DB::OrderItem SL::DB::DeliveryOrderItem SL::DB::InvoiceItem SL::DB::Contact))
           ? $src
           : $src->customervendor;
 
@@ -167,6 +166,25 @@ sub _determine_cvar_validity {
     items => \%item_cvar_validity,
     vc    => \%vc_cvar_validity,
   );
+}
+
+sub  _handle_user_data {
+  my ($self, $form) = @_;
+
+  foreach my $type (qw(employee salesman)) {
+    next if !_has($self, "${type}_id");
+
+    my $user = User->new(login => $self->$type->login);
+    $form->{"${type}_$_"} = $user->{$_} for qw(tel email fax signature);
+
+    if ($self->$type->deleted) {
+      for my $key (grep { $_ =~ m{^deleted_} } SL::DB::Employee->meta->columns) {
+        $key =~ s{^deleted_}{};
+        $form->{"${type}_${key}"} = $form->{"${type}_deleted_${key}"}
+      }
+    }
+
+  }
 }
 
 1;

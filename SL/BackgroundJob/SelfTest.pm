@@ -63,8 +63,9 @@ sub run {
              $self->aggreg->failed,
              $self->aggreg->todo_passed,
   );
-
-  if (!$self->aggreg->all_passed || $self->config->{send_email_on_success}) {
+  # if (!$self->aggreg->all_passed || $self->config->{send_email_on_success}) {
+  # all_passed is not set or calculated (anymore). it is safe to check only for probs or errors
+  if ($self->aggreg->failed || $self->config->{send_email_on_success}) {
     $self->_send_email;
   }
 
@@ -133,7 +134,9 @@ sub _send_email {
   $mail->{content_type} = $content_type;
   $mail->{message}      = $$output;
 
-  $mail->send;
+  my $err = $mail->send;
+  $self->add_errors('Mailer error #1', $err) if $err;
+
 }
 
 sub _prepare_report {

@@ -29,7 +29,7 @@
             <option value=9>[% 'September' | $T8 %]</option>
             <option value=10>[% 'October' | $T8 %]</option>
             <option value=11>[% 'November' | $T8 %]</option>
-            <option value=12>[% 'December' | $T8 %]</option>
+            <option value=12>[% 'December last year period' | $T8 %]</option>
           </select></td>
         </tr>
         <tr>
@@ -54,24 +54,65 @@
       </table>
     </td>
   </tr>
+  <tr>
+   <td><hr size=1 noshade></td>
+   </tr>
+   <tr>
+     <td>
+        <table>
+         <tr>
+           <td align=left>[% 'Gldate' | $T8 %] [% 'From' | $T8 %]</td>
+           <td align=left></td>
+           <td>[% L.date_tag('gldatefrom') %]</td>
+         </tr>
+        </table>
+     </td>
+   </tr>
+   <tr>
+   <tr>
+    <td><hr size=1 noshade></td>
+   </tr>
   [% IF ALL_DEPARTMENTS.as_list.size %]
-  <tr>
-    <th align=left>[% 'Department' | $T8 %]</th>
-  </tr>
-  <tr>
-    <td>
-       <table>
-        <tr>
-          <td align=left>[% 'Department' | $T8 %]</td>
-          <td align=left></td>
-          <td>[% L.select_tag('department_id', ALL_DEPARTMENTS, title_key = 'description', with_empty = 1) %]</td>
-        </tr>
-       </table>
-    </td>
+   <tr>
+     <td>
+        <table>
+         <tr>
+           <td align=left>[% 'Department' | $T8 %]</td>
+           <td align=left></td>
+           <td>[% L.select_tag('department_id', ALL_DEPARTMENTS, title_key = 'description', with_empty = 1) %]</td>
+         </tr>
+        </table>
+     </td>
+   </tr>
+   <tr>
+  <td><hr size=3 noshade></td>
   </tr>
   [% END %]
-  <tr>
-    <td><hr size=3 noshade></td>
+   <tr>
+     <td>
+        <table>
+         <tr>
+          [% IF show_pk_option %]
+           <td align=left>[% 'Export with CV Charts' | $T8 %]</td>
+           <td align=left></td>
+           <td>[% L.checkbox_tag('use_pk', value => 1, checked => 0) %]</td>
+          [% ELSE %]
+           <td align=left><font color="gray">[% 'Export with CV Charts' | $T8 %]</font></td>
+           <td align=left></td>
+           <td>[% L.checkbox_tag('use_pk', value => 1, checked => 0, disabled => 1) %] </td>
+           <td colspan="2"><font color="gray">[% 'Hint: Not all VC Numbers are personal accounts compliant' | $T8 %]</font></td>
+          [% END %]
+         </tr>
+         <tr>
+           <td align=left>[% 'Lock bookings' | $T8 %]</td>
+           <td align=left></td>
+           <td colspan="3">[% L.yes_no_tag('locked', 0) %]</td>
+        </tr>
+        </table>
+     </td>
+   </tr>
+   <tr>
+  <td><hr size=3 noshade></td>
   </tr>
 </table>
 
@@ -81,8 +122,9 @@
 <input type=hidden name=passwort value="[% passwort %]">
 <input type=hidden name=mandantennr value="[% mandantennr %]">
 <input type=hidden name=datentraegernr value="[% datentraegernr %]">
-<input type=hidden name=kne value="[% kne %]">
+<input type=hidden name=exportformat value="[% exportformat %]">
 <input type=hidden name=abrechnungsnr value="[% abrechnungsnr %]">
 
 <input type=hidden name=exporttype value="[% exporttype %]">
+
 </form>

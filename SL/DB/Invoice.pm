@@ -60,6 +60,12 @@ __PACKAGE__->meta->add_relationship(
       sort_by      => 'acc_trans_id ASC',
     },
   },
+  dunnings       => {
+    type         => 'one to many',
+    class        => 'SL::DB::Dunning',
+    column_map   => { id => 'trans_id' },
+    manager_args => { with_objects => [ 'dunnings' ] }
+  },
 );
 
 __PACKAGE__->meta->initialize;
@@ -578,8 +584,8 @@ sub link {
   my ($self) = @_;
 
   my $html;
-  $html   = SL::Presenter->get->sales_invoice($self, display => 'inline') if $self->invoice;
-  $html   = SL::Presenter->get->ar_transaction($self, display => 'inline') if !$self->invoice;
+  $html   = $self->presenter->sales_invoice(display => 'inline') if $self->invoice;
+  $html   = $self->presenter->ar_transaction(display => 'inline') if !$self->invoice;
 
   return $html;
 }

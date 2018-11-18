@@ -107,7 +107,7 @@ sub pay_invoice {
 
   # account where money is paid to/from: bank account or cash
   my $account_bank = SL::DB::Manager::Chart->find_by(id => $params{chart_id});
-  croak "can't find bank account" unless ref $account_bank;
+  croak "can't find bank account with id " . $params{chart_id} unless ref $account_bank;
 
   my $reference_account = $self->reference_account;
   croak "can't find reference account (link = AR/AP) for invoice" unless ref $reference_account;
@@ -461,7 +461,7 @@ sub check_skonto_configuration {
   # my $transactions = $self->transactions;
   foreach my $transaction (@{ $self->transactions }) {
     # find all transactions with an AR_amount or AP_amount link
-    my $tax = SL::DB::Manager::Tax->get_first( where => [taxkey => $transaction->taxkey]);
+    my $tax = SL::DB::Manager::Tax->get_first( where => [taxkey => $transaction->taxkey, id => $transaction->tax_id ]);
     croak "no tax for taxkey " . $transaction->{taxkey} unless ref $tax;
 
     $transaction->{chartlinks} = { map { $_ => 1 } split(m/:/, $transaction->chart_link) };
@@ -542,7 +542,8 @@ sub skonto_charts {
         # $reference_ARAP_amount += $transaction->{amount} * $mult;
 
         # quick hack that works around problem of non-unique tax keys in SKR04
-        my $tax = SL::DB::Manager::Tax->get_first( where => [taxkey => $transaction->{taxkey}]);
+        # ? use tax_id in acc_trans
+        my $tax = SL::DB::Manager::Tax->get_first( where => [id => $transaction->{tax_id}]);
         croak "no tax for taxkey " . $transaction->{taxkey} unless ref $tax;
 
         if ( $is_sales ) {
@@ -628,29 +629,22 @@ sub valid_skonto_amount {
 sub get_payment_select_options_for_bank_transaction {
   my ($self, $bt_id, %params) = @_;
 
-  my $bt = SL::DB::Manager::BankTransaction->find_by( id => $bt_id );
-  die unless $bt;
+  # no skonto date  -> no select option
+  return { payment_type => 'without_skonto', display => t8('without skonto') , selected => 1 } unless $self->skonto_date;
 
-  my $open_amount = $self->open_amount;
-  #$main::lxdebug->message(LXDebug->DEBUG2(),"skonto_date=".$self->skonto_date." open amount=".$open_amount);
+  my $bt = SL::DB::BankTransaction->new(id => $bt_id)->load;
+
   my @options;
-  if ( $open_amount &&                   # invoice amount not 0
-       $self->skonto_date &&             # check whether skonto applies
-       ( abs(abs($self->amount_less_skonto) - abs($bt->amount)) < 0.01 ||
-        ( $bt->transaction_code eq "191" && abs($self->amount_less_skonto) < abs($bt->amount) )) &&
-       $self->check_skonto_configuration) {
-         if ( $self->within_skonto_period($bt->transdate) ) {
-           push(@options, { payment_type => 'without_skonto', display => t8('without skonto') });
-           push(@options, { payment_type => 'with_skonto_pt', display => t8('with skonto acc. to pt'), selected => 1 });
-         } else {
-           push(@options, { payment_type => 'without_skonto', display => t8('without skonto') , selected => 1 });
-           push(@options, { payment_type => 'with_skonto_pt', display => t8('with skonto acc. to pt')});
-         };
-  };
 
+  if ($self->skonto_date && $self->within_skonto_period($bt->transdate)) {
+    push(@options, { payment_type => 'without_skonto', display => t8('without skonto') });
+    push(@options, { payment_type => 'with_skonto_pt', display => t8('with skonto acc. to pt'), selected => 1 });
+  } else {
+    push(@options, { payment_type => 'without_skonto', display => t8('without skonto') , selected => 1 });
+    push(@options, { payment_type => 'with_skonto_pt', display => t8('with skonto acc. to pt')});
+  }
   return @options;
-
-};
+}
 
 sub exchangerate {
   my ($self) = @_;
@@ -791,7 +785,7 @@ or in a certain currency:
                    transdate     => DateTime->now->to_kivitendo,
                    memo          => 'foobar',
                    source        => 'barfoo',
-                   payment_type  => 'with_skonto',
+                   payment_type  => 'with_skonto_pt',
                   );
 
 Allowed payment types are:
@@ -1064,9 +1058,13 @@ might always want to pay as late as possible.
 Make suggestion for a skonto payment type by returning an HTML blob of the options
 of a HTML drop-down select with the most likely option preselected.
 
-This is a helper function for BankTransaction/ajax_payment_suggestion.
+This is a helper function for BankTransaction/ajax_payment_suggestion and
+template/webpages/bank_transactions/invoices.html
 
 We are working with an existing payment, so difference_as_skonto never makes sense.
+
+If skonto is not possible (skonto_date does not exists) simply return
+the single 'no skonto' option as a visual hint.
 
 If skonto is possible (skonto_date exists), add two possibilities:
 without_skonto and with_skonto_pt if payment date is within skonto_date,

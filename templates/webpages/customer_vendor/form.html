@@ -2,8 +2,8 @@
 [%- USE HTML %]
 [%- USE LxERP %]
 [%- USE L %]
+[%- USE Dumper %]
 <h1>[% FORM.title %] [% IF SELF.cv.id %] - [% HTML.escape(SELF.cv.displayable_name) %][% END %]</h1>
-
 [% L.hidden_tag('_cti_enabled', !!LXCONFIG.cti.dial_command) %]
 
 [% cv_cvars = SELF.cv.cvars_by_config %]
@@ -36,6 +36,20 @@
       [% IF SELF.cv.id %]
         <li><a href="#price_rules">[% 'Price Rules' | $T8 %]</a></li>
       [% END %]
+
+      [% IF SELF.cv.id %]
+        [% IF ( FORM.db == 'customer' && AUTH.assert('show_extra_record_tab_customer',1) ) %]
+          <li><a href="[% 'controller.pl?action=CustomerVendorTurnover/list_turnover&id=' _ SELF.cv.id _ '&db=' _ FORM.db %]">[% LxERP.t8('Records') %]
+              [%- IF SELF.open_items > 0 %] <span style="color:red;">&nbsp;$</span>[% END %] [%- IF SELF.open_orders > 0 %] <span style="color:red;">&nbsp;!</span>[% END %]</a>
+          </li>
+        [% END %]
+        [% IF ( FORM.db == 'vendor' && AUTH.assert('show_extra_record_tab_vendor',1) ) %]
+          <li><a href="[% 'controller.pl?action=CustomerVendorTurnover/list_turnover&id=' _ SELF.cv.id _ '&db=' _ FORM.db %]">[% LxERP.t8('Records') %]
+              [%- IF SELF.open_items > 0 %] <span style="color:red;">&nbsp;$</span>[% END %] [%- IF SELF.open_orders > 0 %] <span style="color:red;">&nbsp;!</span>[% END %]</a>
+          </li>
+        [% END %]
+      [% END %]
+
     </ul>
 
     [% PROCESS "customer_vendor/tabs/billing.html" %]
@@ -57,23 +71,13 @@
 
 <script type="text/javascript">
 <!--
-  function submitInputButton(button)
+  function submitInputButton(action)
   {
-    var hidden = document.createElement("input");
-    hidden.setAttribute("type", "hidden");
+    var $hidden = $("<input type='hidden' name='action' value='CustomerVendor/" + action + "'>"),
+        $form   = $('#form');
 
-    if ( button.hasAttribute("name") )
-      hidden.setAttribute("name", button.getAttribute("name"));
-
-    if ( button.hasAttribute("value") )
-      hidden.setAttribute("value", button.getAttribute("value"));
-
-
-    button.form.appendChild(hidden);
-
-    button.disabled = true;
-
-    button.form.submit();
+    $form.append($hidden);
+    $form.submit();
   }
 
   function check_taxzone_and_ustid() {

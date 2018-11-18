@@ -48,6 +48,8 @@ use List::MoreUtils qw(uniq any none);
 use List::Util qw(min max reduce sum);
 use Data::Dumper;
 
+use SL::Controller::Order;
+
 use SL::DB::Customer;
 use SL::DB::TaxZone;
 use SL::DB::PaymentTerm;
@@ -184,6 +186,14 @@ sub edit {
 
   # editing without stuff to edit? try adding it first
   if ($form->{rowcount} && !$form->{print_and_save}) {
+    if ($::instance_conf->get_feature_experimental_order) {
+      my $c = SL::Controller::Order->new;
+      $c->action_edit_collective();
+
+      $main::lxdebug->leave_sub();
+      $::dispatcher->end_request;
+    }
+
     my $id;
     map { $id++ if $form->{"multi_id_$_"} } (1 .. $form->{rowcount});
     if (!$id) {
@@ -297,21 +307,20 @@ sub setup_oe_action_bar {
   my $form   = $::form;
 
   my $has_active_periodic_invoice;
-  if ($params{obj}) {
+  if ($params{oe_obj}) {
     $has_active_periodic_invoice =
-         $params{obj}->is_type('sales_order')
-      && $params{obj}->periodic_invoices_config
-      && $params{obj}->periodic_invoices_config->active
-      && (   !$params{obj}->periodic_invoices_config->end_date
-          || ($params{obj}->periodic_invoices_config->end_date > DateTime->today_local))
-      && $params{obj}->periodic_invoices_config->get_previous_billed_period_start_date;
+         $params{oe_obj}->is_type('sales_order')
+      && $params{oe_obj}->periodic_invoices_config
+      && $params{oe_obj}->periodic_invoices_config->active
+      && (   !$params{oe_obj}->periodic_invoices_config->end_date
+          || ($params{oe_obj}->periodic_invoices_config->end_date > DateTime->today_local))
+      && $params{oe_obj}->periodic_invoices_config->get_previous_billed_period_start_date;
   }
 
   my $allow_invoice      = $params{is_req_quo}
                         || $params{is_pur_ord}
                         || ($params{is_sales_quo} && $::instance_conf->get_allow_sales_invoice_from_sales_quotation)
                         || ($params{is_sales_ord} && $::instance_conf->get_allow_sales_invoice_from_sales_order);
-  my @req_trans_desc     = qw(kivi.SalesPurchase.check_transaction_description)         x!!$::instance_conf->get_require_transaction_description_ps;
   my @req_trans_cost_art = qw(kivi.SalesPurchase.check_transport_cost_article_presence) x!!$::instance_conf->get_transport_cost_reminder_article_number_id;
   my @warn_p_invoice     = qw(kivi.SalesPurchase.oe_warn_save_active_periodic_invoice)  x!!$has_active_periodic_invoice;
 
@@ -321,6 +330,7 @@ sub setup_oe_action_bar {
         t8('Update'),
         submit    => [ '#form', { action => "update" } ],
         id        => 'update_button',
+        checks   => [ 'kivi.validate_form' ],
         accesskey => 'enter',
       ],
 
@@ -328,18 +338,18 @@ sub setup_oe_action_bar {
         action => [
           t8('Save'),
           submit  => [ '#form', { action => "save" } ],
-          checks  => [ @req_trans_desc, @req_trans_cost_art, @warn_p_invoice ],
+          checks  => [ 'kivi.validate_form', @req_trans_cost_art, @warn_p_invoice ],
         ],
         action => [
           t8('Save as new'),
           submit   => [ '#form', { action => "save_as_new" } ],
-          checks   => [ @req_trans_desc, @req_trans_cost_art ],
+          checks   => [ 'kivi.validate_form', @req_trans_cost_art ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
         ],
         action => [
           t8('Save and Close'),
           submit  => [ '#form', { action => "save_and_close" } ],
-          checks  => [ @req_trans_desc, @req_trans_cost_art, @warn_p_invoice ],
+          checks  => [ 'kivi.validate_form', @req_trans_cost_art, @warn_p_invoice ],
         ],
         action => [
           t8('Delete'),
@@ -360,36 +370,42 @@ sub setup_oe_action_bar {
           t8('Sales Order'),
           submit   => [ '#form', { action => "sales_order" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $params{is_sales_quo} || $params{is_pur_ord},
         ],
         action => [
           t8('Purchase Order'),
           submit   => [ '#form', { action => "purchase_order" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $params{is_sales_ord} || $params{is_req_quo},
         ],
         action => [
           t8('Delivery Order'),
           submit   => [ '#form', { action => "delivery_order" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $params{is_sales_ord} || $params{is_pur_ord},
         ],
         action => [
           t8('Invoice'),
           submit   => [ '#form', { action => "invoice" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $allow_invoice,
         ],
         action => [
           t8('Quotation'),
           submit   => [ '#form', { action => "quotation" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $params{is_sales_ord},
         ],
         action => [
           t8('Request for Quotation'),
           submit   => [ '#form', { action => "request_for_quotation" } ],
           disabled => !$form->{id} ? t8('This record has not been saved yet.') : undef,
+          checks   => [ 'kivi.validate_form' ],
           only_if  => $params{is_pur_ord},
         ],
       ], # end of combobox "Workflow"
@@ -399,12 +415,12 @@ sub setup_oe_action_bar {
         action => [
           t8('Print'),
           call   => [ 'kivi.SalesPurchase.show_print_dialog' ],
-          checks => [ @req_trans_desc ],
+          checks => [ 'kivi.validate_form' ],
         ],
         action => [
           t8('E Mail'),
           call   => [ 'kivi.SalesPurchase.show_email_dialog' ],
-          checks => [ @req_trans_desc ],
+          checks => [ 'kivi.validate_form' ],
         ],
         action => [
           t8('Download attachments of all parts'),
@@ -429,6 +445,7 @@ sub setup_oe_action_bar {
       ], # end of combobox "more"
     );
   }
+  $::request->layout->add_javascripts('kivi.Validator.js');
 }
 
 sub setup_oe_search_action_bar {
@@ -440,9 +457,11 @@ sub setup_oe_search_action_bar {
         t8('Search'),
         submit    => [ '#form' ],
         accesskey => 'enter',
+        checks    => [ 'kivi.validate_form' ],
       ],
     );
   }
+  $::request->layout->add_javascripts('kivi.Validator.js');
 }
 
 sub setup_oe_orders_action_bar {
@@ -600,7 +619,7 @@ sub form_header {
     }
   }
 
-  $::request->{layout}->use_javascript(map { "${_}.js" } qw(kivi.SalesPurchase kivi.File kivi.Part show_form_details show_history show_vc_details ckeditor/ckeditor ckeditor/adapters/jquery kivi.io autocomplete_customer));
+  $::request->{layout}->use_javascript(map { "${_}.js" } qw(kivi.SalesPurchase kivi.File kivi.Part kivi.CustomerVendor kivi.Validator show_form_details show_history show_vc_details ckeditor/ckeditor ckeditor/adapters/jquery kivi.io));
 
 
   # original snippets:
@@ -613,14 +632,16 @@ sub form_header {
     is_pur_ord   => scalar($form->{type} =~ /purchase_order$/),
   );
 
-  setup_oe_action_bar(%type_check_vars);
+  setup_oe_action_bar(
+    %type_check_vars,
+    oe_obj => $TMPL_VAR->{oe_obj},
+    vc_obj => $TMPL_VAR->{vc_obj},
+  );
 
   $form->header;
   if ($form->{CFDD_shipto} && $form->{CFDD_shipto_id} ) {
       $form->{shipto_id} = $form->{CFDD_shipto_id};
   }
-
-  push @custom_hiddens, map { "shiptocvar_" . $_->name } @{ SL::DB::Manager::CustomVariableConfig->get_all(where => [ module => 'ShipTo' ]) };
 
   $TMPL_VAR->{HIDDENS} = [ map { name => $_, value => $form->{$_} },
      qw(id type vc proforma queued printed emailed
@@ -718,6 +739,12 @@ sub form_footer {
 
   my $print_options_html = setup_sales_purchase_print_options();
 
+  my $shipto_cvars       = SL::DB::Shipto->new->cvars_by_config;
+  foreach my $var (@{ $shipto_cvars }) {
+    my $name = "shiptocvar_" . $var->config->name;
+    $var->value($form->{$name}) if exists $form->{$name};
+  }
+
   print $form->parse_html_template("oe/form_footer", {
      %$TMPL_VAR,
      print_options   => $print_options_html,
@@ -727,6 +754,7 @@ sub form_footer {
      is_req_quo      => scalar ($form->{type} =~ /request_quotation$/),
      is_sales_ord    => scalar ($form->{type} =~ /sales_order$/),
      is_pur_ord      => scalar ($form->{type} =~ /purchase_order$/),
+     shipto_cvars    => $shipto_cvars,
   });
 
   $main::lxdebug->leave_sub();
@@ -995,7 +1023,7 @@ sub orders {
 
   my @columns = (
     "transdate",               "reqdate",
-    "id",                      $ordnumber,             "edit_exp",
+    "id",                      $ordnumber,
     "cusordnumber",            "customernumber",
     "name",                    "netamount",
     "tax",                     "amount",
@@ -1022,7 +1050,6 @@ sub orders {
   $form->{l_open}              = $form->{l_closed} = "Y" if ($form->{open}      && $form->{closed});
   $form->{l_delivered}         = "Y"                     if ($form->{delivered} && $form->{notdelivered});
   $form->{l_periodic_invoices} = "Y"                     if ($form->{periodic_invoices_active} && $form->{periodic_invoices_inactive});
-  $form->{l_edit_exp}          = "Y"                     if $::instance_conf->get_feature_experimental && (any { $form->{type} eq $_ } qw(sales_order purchase_order));
   map { $form->{"l_${_}"} = 'Y' } qw(order_probability expected_billing_date expected_netamount) if $form->{l_order_probability_expected_billing_date};
 
   my $attachment_basename;
@@ -1104,7 +1131,6 @@ sub orders {
     'expected_billing_date'   => { 'text' => $locale->text('Exp. bill. date'), },
     'expected_netamount'      => { 'text' => $locale->text('Exp. netamount'), },
     'payment_terms'           => { 'text' => $locale->text('Payment Terms'), },
-    'edit_exp'                => { 'text' => $locale->text('Edit (experimental)'), },
     %column_defs_cvars,
   );
 
@@ -1212,7 +1238,9 @@ sub orders {
 
   my $idx = 1;
 
-  my $edit_url = build_std_url('action=edit', 'type', 'vc');
+  my $edit_url = ($::instance_conf->get_feature_experimental_order)
+               ? build_std_url('script=controller.pl', 'action=Order/edit', 'type')
+               : build_std_url('action=edit', 'type', 'vc');
 
   foreach my $oe (@{ $form->{OE} }) {
     map { $oe->{$_} *= $oe->{exchangerate} } @subtotal_columns;
@@ -1236,7 +1264,6 @@ sub orders {
 
     foreach my $column (@columns) {
       next if ($column eq 'ids');
-      next if ($column eq 'edit_exp');
       $row->{$column} = {
         'data'  => $oe->{$column},
         'align' => $column_alignment{$column},
@@ -1251,9 +1278,6 @@ sub orders {
     };
 
     $row->{$ordnumber}->{link} = $edit_url . "&id=" . E($oe->{id}) . "&callback=${callback}";
-
-    $row->{edit_exp}->{data}   = $oe->{ordnumber};
-    $row->{edit_exp}->{link}   = build_std_url('script=controller.pl', 'action=Order/edit', "type=$form->{type}", 'id=' . E($oe->{id}));
 
     my $row_set = [ $row ];
 
@@ -2033,10 +2057,39 @@ sub oe_delivery_order_from_order {
   my $order = SL::DB::Order->new(id => $::form->{id})->load;
   $order->flatten_to_form($::form, format_amounts => 1);
 
+  # hack: add partsgroup for first row if it does not exists,
+  # because _remove_billed_or_delivered_rows and _remove_full_delivered_rows
+  # determine fields to handled by existing fields for the first row. If partsgroup
+  # is missing there, for deleted rows the partsgroup_field is not emptied and in
+  # update_delivery_order it will not considered an empty row ...
+  $::form->{partsgroup_1} = '' if !exists $::form->{partsgroup_1};
+
   # fake last empty row
   $::form->{rowcount}++;
 
+  _update_ship();
   delivery_order();
+}
+
+sub oe_invoice_from_order {
+
+  return if !$::form->{id};
+
+  my $order = SL::DB::Order->new(id => $::form->{id})->load;
+  $order->flatten_to_form($::form, format_amounts => 1);
+
+  # hack: add partsgroup for first row if it does not exists,
+  # because _remove_billed_or_delivered_rows and _remove_full_delivered_rows
+  # determine fields to handled by existing fields for the first row. If partsgroup
+  # is missing there, for deleted rows the partsgroup_field is not emptied and in
+  # update_delivery_order it will not considered an empty row ...
+  $::form->{partsgroup_1} = '' if !exists $::form->{partsgroup_1};
+
+  # fake last empty row
+  $::form->{rowcount}++;
+
+  _update_ship();
+  invoice();
 }
 
 sub yes {
@@ -2095,7 +2148,9 @@ sub report_for_todo_list {
   my $content;
 
   if (@{ $quotations }) {
-    my $edit_url = build_std_url('script=oe.pl', 'action=edit');
+    my $edit_url = ($::instance_conf->get_feature_experimental_order)
+                 ? build_std_url('script=controller.pl', 'action=Order/edit')
+                 : build_std_url('script=oe.pl', 'action=edit');
 
     $content     = $form->parse_html_template('oe/report_for_todo_list', { 'QUOTATIONS' => $quotations,
                                                                            'edit_url'   => $edit_url });
@@ -2117,11 +2172,16 @@ sub edit_periodic_invoices_config {
   $config = YAML::Load($::form->{periodic_invoices_config}) if $::form->{periodic_invoices_config};
 
   if ('HASH' ne ref $config) {
+    my $lang_id = $::form->{language_id};
     $config =  { periodicity             => 'm',
                  order_value_periodicity => 'p', # = same as periodicity
                  start_date_as_date      => $::form->{transdate} || $::form->current_date,
                  extend_automatically_by => 12,
                  active                  => 1,
+                 email_subject           => GenericTranslations->get(language_id => $lang_id,
+                                              translation_type =>"preset_text_periodic_invoices_email_subject"),
+                 email_body              => GenericTranslations->get(language_id => $lang_id,
+                                              translation_type =>"preset_text_periodic_invoices_email_body"),
                };
   }
 
@@ -2140,7 +2200,7 @@ sub edit_periodic_invoices_config {
   }
 
   $::form->header(no_layout => 1);
-  print $::form->parse_html_template('oe/edit_periodic_invoices_config', $config);
+  print $::form->parse_html_template('oe/edit_periodic_invoices_config', {config => $config});
 
   $::lxdebug->leave_sub();
 }

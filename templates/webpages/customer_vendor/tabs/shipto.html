@@ -16,7 +16,7 @@
              title_key = 'displayable_id',
              with_empty = 1,
              empty_title = LxERP.t8('New shipto'),
-             onchange = "kivi.CustomerVendor.selectShipto({onFormSet: function(){ shiptoMapWidget.testInputs(); local_reinit_widgets(); }});",
+             onchange = "kivi.CustomerVendor.selectShipto({onFormSet: function(){ shiptoMapWidget.testInputs(); kivi.reinit_widgets(); }});",
            )
         %]
       </td>
@@ -135,7 +135,7 @@
     [% END %]
   </table>
 
-  [% L.button_tag('submitInputButton(this);', LxERP.t8('Delete Shipto'), name = 'action_delete_shipto', class = 'submit') %]
+  [% L.button_tag('submitInputButton("delete_shipto");', LxERP.t8('Delete Shipto'), class = 'submit') %]
   [% IF ( !SELF.shipto.shipto_id ) %]
     <script type="text/javascript">
       $('#action_delete_shipto').hide();

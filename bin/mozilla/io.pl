@@ -53,6 +53,7 @@ use SL::IC;
 use SL::IO;
 use SL::File;
 use SL::PriceSource;
+use SL::Presenter::Part;
 
 use SL::DB::Contact;
 use SL::DB::Customer;
@@ -63,6 +64,7 @@ use SL::DB::Vendor;
 use SL::Helper::CreatePDF;
 use SL::Helper::Flash;
 use SL::Helper::PrintOptions;
+use SL::Helper::ShippedQty;
 
 require "bin/mozilla/common.pl";
 
@@ -140,7 +142,6 @@ sub display_row {
   $form->{weightunit} = $defaults->{weightunit};
 
   my $is_purchase        = (first { $_ eq $form->{type} } qw(request_quotation purchase_order purchase_delivery_order)) || ($form->{script} eq 'ir.pl');
-  my $show_min_order_qty =  first { $_ eq $form->{type} } qw(request_quotation purchase_order);
   my $is_delivery_order  = $form->{type} =~ /_delivery_order$/;
   my $is_quotation       = $form->{type} =~ /_quotation$/;
   my $is_invoice         = $form->{type} =~ /invoice/;
@@ -307,8 +308,8 @@ sub display_row {
 
 
     $column_data{partnumber}    = $cgi->textfield(-name => "partnumber_$i",    -id => "partnumber_$i",    -size => 12, -value => $form->{"partnumber_$i"});
-    $column_data{type_and_classific} = $::request->presenter->type_abbreviation($form->{"part_type_$i"}).
-                                       $::request->presenter->classification_abbreviation($form->{"classification_id_$i"}) if $form->{"id_$i"};
+    $column_data{type_and_classific} = SL::Presenter::Part::type_abbreviation($form->{"part_type_$i"}).
+                                       SL::Presenter::Part::classification_abbreviation($form->{"classification_id_$i"}) if $form->{"id_$i"};
     $column_data{description} = (($rows > 1) # if description is too large, use a textbox instead
                                 ? $cgi->textarea( -name => "description_$i", -id => "description_$i", -default => $form->{"description_$i"}, -rows => $rows, -columns => 30)
                                 : $cgi->textfield(-name => "description_$i", -id => "description_$i",   -value => $form->{"description_$i"}, -size => 30))
@@ -316,9 +317,9 @@ sub display_row {
 
     my $qty_dec = ($form->{"qty_$i"} =~ /\.(\d+)/) ? length $1 : 2;
 
-    $column_data{qty}  = $cgi->textfield(-name => "qty_$i", -size => 5, -value => $form->format_amount(\%myconfig, $form->{"qty_$i"}, $qty_dec));
-    $column_data{qty} .= $cgi->button(-onclick => "calculate_qty_selection_window('qty_$i','alu_$i', 'formel_$i', $i)", -value => $locale->text('*/'))
-                       . $cgi->hidden(-name => "formel_$i", -value => $form->{"formel_$i"}) . $cgi->hidden("-name" => "alu_$i", "-value" => $form->{"alu_$i"})
+    $column_data{qty}  = $cgi->textfield(-name => "qty_$i", -size => 5, -class => "numeric", -value => $form->format_amount(\%myconfig, $form->{"qty_$i"}, $qty_dec));
+    $column_data{qty} .= $cgi->button(-onclick => "calculate_qty_selection_dialog('qty_$i', '', 'formel_$i', '')", -value => $locale->text('*/'))
+                       . $cgi->hidden(-name => "formel_$i", -value => $form->{"formel_$i"})
       if $form->{"formel_$i"};
 
     $column_data{ship} = '';
@@ -376,10 +377,10 @@ sub display_row {
     my $edit_discounts  = $main::auth->assert('edit_prices', 1) && !$::form->{"active_discount_source_$i"};
     $column_data{sellprice}   = (!$edit_prices)
                                 ? $cgi->hidden(   -name => "sellprice_$i", -id => "sellprice_$i", -value => $sellprice_value) . $sellprice_value
-                                : $cgi->textfield(-name => "sellprice_$i", -id => "sellprice_$i", -size => 10, -onBlur => "check_right_number_format(this)", -value => $sellprice_value);
+                                : $cgi->textfield(-name => "sellprice_$i", -id => "sellprice_$i", -size => 10, -class => "numeric", -value => $sellprice_value);
     $column_data{discount}    = (!$edit_discounts)
                                   ? $cgi->hidden(   -name => "discount_$i", -id => "discount_$i", -value => $discount_value) . $discount_value . ' %'
-                                  : $cgi->textfield(-name => "discount_$i", -id => "discount_$i", -size => 3, -value => $discount_value);
+                                  : $cgi->textfield(-name => "discount_$i", -id => "discount_$i", -size => 3, -"data-validate" => "number", -class => "numeric", -value => $discount_value);
 
     if ($is_delivery_order) {
       $column_data{stock_in_out} =  calculate_stock_in_out($i);
@@ -392,7 +393,7 @@ sub display_row {
       '-labels' => \%projectnumber_labels,
       '-default' => $form->{"project_id_$i"}
     ));
-    $column_data{reqdate}   = qq|<input name="reqdate_$i" size="11" onchange="check_right_date_format(this)" value="$form->{"reqdate_$i"}">|;
+    $column_data{reqdate}   = qq|<input name="reqdate_$i" size="11" data-validate="date" value="$form->{"reqdate_$i"}">|;
     $column_data{subtotal}  = sprintf qq|<input type="checkbox" name="subtotal_$i" value="1" %s>|, $form->{"subtotal_$i"} ? 'checked' : '';
 
 # begin marge calculations
@@ -478,7 +479,7 @@ sub display_row {
           $cgi->hidden("-name" => "price_new_$i", "-value" => $form->format_amount(\%myconfig, $form->{"price_new_$i"})),
           map { ($cgi->hidden("-name" => $_, "-id" => $_, "-value" => $form->{$_})); } map { $_."_$i" }
             (qw(bo price_old id inventory_accno bin partsgroup partnotes active_price_source active_discount_source
-                income_accno expense_accno listprice assembly taxaccounts ordnumber donumber transdate cusordnumber
+                income_accno expense_accno listprice part_type taxaccounts ordnumber donumber transdate cusordnumber
                 longdescription basefactor marge_absolut marge_percent marge_price_factor weight), @hidden_vars)
     );
 
@@ -506,6 +507,20 @@ sub display_row {
   $main::lxdebug->leave_sub();
 }
 
+sub setup_io_select_item_action_bar {
+  my %params = @_;
+
+  for my $bar ($::request->layout->get('actionbar')) {
+    $bar->add(
+      action => [
+        t8('Continue'),
+        submit    => [ '#form' ],
+        accesskey => 'enter',
+      ],
+    );
+  }
+}
+
 sub select_item {
   $main::lxdebug->enter_sub();
 
@@ -513,6 +528,8 @@ sub select_item {
   my $mode            = $params{mode}            || croak "Missing parameter 'mode'";
   my $pre_entered_qty = $params{pre_entered_qty} || 1;
   _check_io_auth();
+
+  setup_io_select_item_action_bar();
 
   my $previous_form = $::auth->save_form_in_session(form => $::form);
   $::form->{title}  = $::myconfig{item_multiselect} ?
@@ -891,6 +908,46 @@ sub validate_items {
 sub order {
   $main::lxdebug->enter_sub();
 
+  _order();
+
+  if ($::instance_conf->get_feature_experimental_order) {
+    my $order = _make_record();
+    $order->globalproject_id(undef) if !$order->globalproject_id;
+    $order->payment_id(undef)       if !$order->payment_id;
+    my $row = 1;
+    foreach my $item (@{$order->items_sorted}) {
+      $item->custom_variables([]);
+
+      $item->price_factor_id(undef) if !$item->price_factor_id;
+      $item->project_id(undef)      if !$item->project_id;
+      $item->discount($item->discount/100.0);
+
+      # autovivify all cvars that are not in the form (cvars_by_config can do it).
+      # workaround to pre-parse number-cvars (parse_custom_variable_values does not parse number values).
+       foreach my $var (@{ $item->cvars_by_config }) {
+        my $key = 'ic_cvar_' . $var->config->name . '_' . $row;
+        $var->unparsed_value($::form->{$key});
+        $var->unparsed_value($::form->parse_amount(\%::myconfig, $var->{__unparsed_value})) if ($var->config->type eq 'number' && exists($var->{__unparsed_value}));
+      }
+      $item->parse_custom_variable_values;
+
+      $row++;
+    }
+
+    require SL::Controller::Order;
+    my $c = SL::Controller::Order->new(order => $order);
+    $c->action_edit();
+
+    $main::lxdebug->leave_sub();
+    $::dispatcher->end_request;
+  }
+
+  &display_form;
+
+  $main::lxdebug->leave_sub();
+}
+
+sub _order {
   my $form     = $main::form;
   my %myconfig = %main::myconfig;
   my $locale   = $main::locale;
@@ -964,9 +1021,6 @@ sub order {
   }
 
   &prepare_order;
-  &display_form;
-
-  $main::lxdebug->leave_sub();
 }
 
 sub quotation {
@@ -986,7 +1040,7 @@ sub quotation {
   if ($form->{second_run}) {
     $form->{print_and_post} = 0;
   }
-  delete $form->{$_} foreach (qw(id printed emailed queued));
+  delete $form->{$_} foreach (qw(id printed emailed queued quonumber transaction_description));
 
   my $buysell;
   if ($form->{script} eq 'ir.pl' || $form->{type} eq 'purchase_order') {
@@ -1669,37 +1723,14 @@ sub _update_part_information {
 }
 
 sub _update_ship {
-  $main::lxdebug->enter_sub();
+  return unless $::form->{id};
+  my $helper = SL::Helper::ShippedQty->new->calculate($::form->{id});
 
-  my $form     = $main::form;
-  my %myconfig = %main::myconfig;
-
-  if (!$form->{ordnumber} || !$form->{id}) {
-    map { $form->{"ship_$_"} = 0 } (1..$form->{rowcount});
-    $main::lxdebug->leave_sub();
-    return;
+  for my $i (1..$::form->{rowcount}) {
+    if (my $oid = $::form->{"orderitems_id_$i"}) {
+      $::form->{"ship_$i"} = $helper->shipped_qty->{$oid};
+    }
   }
-
-  my $all_units = AM->retrieve_all_units();
-
-  my %ship = DO->get_shipped_qty('oe_id' => $form->{id});
-
-  foreach my $i (1..$form->{rowcount}) {
-    next unless ($form->{"id_${i}"});
-
-    $form->{"ship_$i"} = 0;
-
-    my $ship_entry = $ship{$i};
-
-    next if (!$ship_entry || ($ship_entry->{qty_ordered} <= 0));
-
-    my $rowqty = $ship_entry->{qty_ordered} - $ship_entry->{qty_notdelivered};
-    $rowqty   *= $all_units->{$form->{"unit_$i"}}->{factor} /
-                 $all_units->{$form->{"partunit_$i"}}->{factor} if !$form->{simple_save};
-    $form->{"ship_$i"}  = $rowqty;
-  }
-
-  $main::lxdebug->leave_sub();
 }
 
 sub _update_custom_variables {
@@ -1944,7 +1975,7 @@ sub setup_sales_purchase_print_options {
   $print_form->{printers}  = SL::DB::Manager::Printer->get_all_sorted;
   $print_form->{languages} = SL::DB::Manager::Language->get_all_sorted;
 
-  $print_form->{$_} = $::form->{$_} for qw(type media language_id printer_id);
+  $print_form->{$_} = $::form->{$_} for qw(type media language_id printer_id storno);
 
   return SL::Helper::PrintOptions->get_print_options(
     form    => $print_form,
@@ -1991,15 +2022,21 @@ sub show_sales_purchase_email_dialog {
   my $email = '';
   if ($::form->{cp_id}) {
     $email = SL::DB::Contact->load_cached($::form->{cp_id})->cp_email;
-  } elsif ($::form->{vc} && $::form->{vc_id}) {
+  }
+
+  if (!$email && $::form->{vc} && $::form->{vc_id}) {
     $email = SL::DB::Customer->load_cached($::form->{vc_id})->email if 'customer' eq $::form->{vc};
     $email = SL::DB::Vendor  ->load_cached($::form->{vc_id})->email if 'vendor'   eq $::form->{vc};
   }
 
+  $email = '' if $::form->{type} eq 'purchase_delivery_order';
+
   my $email_form = {
     to                  => $email,
     subject             => $::form->generate_email_subject,
+    message             => $::form->generate_email_body,
     attachment_filename => $::form->generate_attachment_filename,
+    js_send_function    => 'kivi.SalesPurchase.send_email()',
   };
 
   my %files = _get_files_for_email_dialog();

@@ -5,8 +5,11 @@ use strict;
 use 5.008;                          # too much magic in here to include perl 5.6
 
 BEGIN {
-  unshift @INC, "modules/override"; # Use our own versions of various modules (e.g. YAML).
-  push    @INC, "modules/fallback"; # Only use our own versions of modules if there's no system version.
+  use FindBin;
+
+  unshift(@INC, $FindBin::Bin . '/../modules/override'); # Use our own versions of various modules (e.g. YAML).
+  push   (@INC, $FindBin::Bin . '/..');
+  push   (@INC, $FindBin::Bin . '/../modules/fallback'); # Only use our own versions of modules if there's no system version.
 }
 
 use Data::Dumper;
@@ -287,6 +290,12 @@ Print the manual page and exit.
 
 Log in as C<username>. The default is to use the value from the
 configuration file and C<demo> if none is set there.
+
+=item B<-c>, B<--client>=C<client>
+
+Use the database for client C<client>. C<client> can be a client's
+database ID or its name. The default is to use the value from the
+configuration file.
 
 =item B<-o>, B<--log-file>=C<filename>
 

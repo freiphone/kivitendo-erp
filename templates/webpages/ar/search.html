@@ -56,7 +56,7 @@
      </tr>
      <tr>
       <th align="right">[% 'Project Number' | $T8 %]</th>
-      <td>[% P.project_picker("project_id", project_id, style=style) %]</td>
+      <td>[% P.project.picker("project_id", project_id, style=style) %]</td>
      </tr>
     [% IF ALL_BUSINESS_TYPES.as_list.size > 0 %]
      <tr>
@@ -64,6 +64,10 @@
       <td>[% L.select_tag("business_id", ALL_BUSINESS_TYPES, with_empty=1, title_key="description", style=style) %]</td>
      </tr>
     [% END %]
+     <tr>
+      <th>[% 'Show only marked as paid invoices' | $T8 %]</th>
+      <td>[% L.checkbox_tag('show_marked_as_closed') %]</td>
+     </tr>
      <tr>
       <th align=right nowrap>[% 'Invoice Date' | $T8 %]</th>
       <td>

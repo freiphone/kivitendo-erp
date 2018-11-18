@@ -114,7 +114,7 @@ sub get_account {
     }
 
     # get new accounts (Folgekonto). Find all charts with the same link
-    $form->{NEWACCOUNT} = $chart_obj->db->dbh->selectall_arrayref('select id, accno,description from chart where link = ? order by accno', {Slice => {}}, $chart_obj->link);
+    $form->{NEWACCOUNT} = $chart_obj->db->dbh->selectall_arrayref('select id, accno,description from chart where link = ? and id != ? order by accno', {Slice => {}}, $chart_obj->link, $form->{id});
 
   } else { # set to orphaned for new charts, so chart_type can be changed (needed by $AccountIsPosted)
     $form->{orphaned} = 1;
@@ -1305,12 +1305,14 @@ sub get_warehouse {
   map { $form->{$_} = $ref->{$_} } keys %{ $ref };
 
   $query = <<SQL;
-    SELECT b.*,
-      (   EXISTS(SELECT i.bin_id FROM inventory i WHERE i.bin_id = b.id LIMIT 1)
-       OR EXISTS(SELECT p.bin_id FROM parts     p WHERE p.bin_id = b.id LIMIT 1))
-      AS in_use
-    FROM bin b
-    WHERE b.warehouse_id = ?
+   SELECT b.*, use.in_use
+     FROM bin b
+     LEFT JOIN (
+       SELECT DISTINCT bin_id, TRUE AS in_use FROM inventory
+       UNION
+       SELECT DISTINCT bin_id, TRUE AS in_use FROM parts
+     ) use ON use.bin_id = b.id
+     WHERE b.warehouse_id = ?;
 SQL
 
   $form->{BINS} = selectall_hashref_query($form, $dbh, $query, conv_i($form->{id}));

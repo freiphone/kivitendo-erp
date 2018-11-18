@@ -18,7 +18,7 @@
             empty_title = LxERP.t8('New contact'),
             value_key = 'cp_id',
             title_key = 'full_name',
-            onchange = "kivi.CustomerVendor.selectContact({onFormSet: function(){ contactsMapWidget.testInputs(); local_reinit_widgets(); }});",
+            onchange = "kivi.CustomerVendor.selectContact({onFormSet: function(){ contactsMapWidget.testInputs(); kivi.reinit_widgets(); }});",
           )
         %]
       </td>
@@ -224,7 +224,7 @@
 
   </table>
 
-  [% L.button_tag('submitInputButton(this);', LxERP.t8('Delete Contact'), name = 'action_delete_contact', class = 'submit') %]
+  [% L.button_tag('submitInputButton("delete_contact");', LxERP.t8('Delete Contact'), class = 'submit') %]
   [% IF ( !SELF.contact.cp_id ) %]
     <script type="text/javascript">
       $('#action_delete_contact').hide();

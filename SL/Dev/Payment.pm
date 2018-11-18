@@ -2,7 +2,8 @@ package SL::Dev::Payment;
 
 use strict;
 use base qw(Exporter);
-our @EXPORT = qw(create_payment_terms create_bank_account create_bank_transaction);
+our @EXPORT_OK = qw(create_payment_terms create_bank_account create_bank_transaction create_sepa_export create_sepa_export_item);
+our %EXPORT_TAGS = (ALL => \@EXPORT_OK);
 
 use SL::DB::PaymentTerm;
 use SL::DB::BankAccount;
@@ -37,6 +38,30 @@ sub create_bank_account {
   );
   $bank_account->assign_attributes(%params) if %params;
   $bank_account->save;
+}
+
+sub create_sepa_export {
+  my (%params) = @_;
+  my $sepa_export = SL::DB::SepaExport->new(
+    closed       => 0,
+    employee_id  => $params{employee_id} // SL::DB::Manager::Employee->current->id,
+    executed     => 0,
+    vc           => 'customer',
+  );
+  $sepa_export->assign_attributes(%params) if %params;
+  $sepa_export->save;
+}
+
+sub create_sepa_export_item {
+  my (%params) = @_;
+  my $sepa_exportitem = SL::DB::SepaExportItem->new(
+    chart_id     => delete $params{chart_id} // $::instance_conf->get_ar_paid_accno_id,
+    payment_type => 'without_skonto',
+    our_bic      => 'BANK1234',
+    our_iban     => 'DE12500105170648489890',
+  );
+  $sepa_exportitem->assign_attributes(%params) if %params;
+  $sepa_exportitem->save;
 }
 
 sub create_bank_transaction {

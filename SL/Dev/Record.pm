@@ -2,13 +2,14 @@ package SL::Dev::Record;
 
 use strict;
 use base qw(Exporter);
-our @EXPORT = qw(create_invoice_item create_sales_invoice create_credit_note create_order_item  create_sales_order create_purchase_order create_delivery_order_item create_sales_delivery_order create_purchase_delivery_order create_project);
+our @EXPORT_OK = qw(create_invoice_item create_sales_invoice create_credit_note create_order_item  create_sales_order create_purchase_order create_delivery_order_item create_sales_delivery_order create_purchase_delivery_order create_project create_department);
+our %EXPORT_TAGS = (ALL => \@EXPORT_OK);
 
 use SL::DB::Invoice;
 use SL::DB::InvoiceItem;
 use SL::DB::Employee;
-use SL::Dev::Part;
-use SL::Dev::CustomerVendor;
+use SL::Dev::Part qw(new_part);
+use SL::Dev::CustomerVendor qw(new_vendor new_customer);
 use SL::DB::Project;
 use SL::DB::ProjectStatus;
 use SL::DB::ProjectType;
@@ -28,12 +29,12 @@ sub create_sales_invoice {
   my $invoiceitems = delete $params{invoiceitems} // _create_two_items($record_type);
   _check_items($invoiceitems, $record_type);
 
-  my $customer = delete $params{customer} // SL::Dev::CustomerVendor::create_customer(name => 'Testcustomer')->save;
+  my $customer = delete $params{customer} // new_customer(name => 'Testcustomer')->save;
   die "illegal customer" unless defined $customer && ref($customer) eq 'SL::DB::Customer';
 
   my $invoice = SL::DB::Invoice->new(
     invoice      => 1,
-    type         => 'sales_invoice',
+    type         => 'invoice',
     customer_id  => $customer->id,
     taxzone_id   => $customer->taxzone->id,
     invnumber    => delete $params{invnumber}   // undef,
@@ -59,7 +60,7 @@ sub create_credit_note {
   my $invoiceitems = delete $params{invoiceitems} // _create_two_items($record_type);
   _check_items($invoiceitems, $record_type);
 
-  my $customer = delete $params{customer} // SL::Dev::CustomerVendor::create_customer(name => 'Testcustomer')->save;
+  my $customer = delete $params{customer} // new_customer(name => 'Testcustomer')->save;
   die "illegal customer" unless defined $customer && ref($customer) eq 'SL::DB::Customer';
 
   # adjust qty for credit note items
@@ -93,7 +94,7 @@ sub create_sales_delivery_order {
   my $orderitems = delete $params{orderitems} // _create_two_items($record_type);
   _check_items($orderitems, $record_type);
 
-  my $customer = $params{customer} // SL::Dev::CustomerVendor::create_customer(name => 'Testcustomer')->save;
+  my $customer = $params{customer} // new_customer(name => 'Testcustomer')->save;
   die "illegal customer" unless ref($customer) eq 'SL::DB::Customer';
 
   my $delivery_order = SL::DB::DeliveryOrder->new(
@@ -121,7 +122,7 @@ sub create_purchase_delivery_order {
   my $orderitems = delete $params{orderitems} // _create_two_items($record_type);
   _check_items($orderitems, $record_type);
 
-  my $vendor = $params{vendor} // SL::Dev::CustomerVendor::create_vendor(name => 'Testvendor')->save;
+  my $vendor = $params{vendor} // new_vendor(name => 'Testvendor')->save;
   die "illegal customer" unless ref($vendor) eq 'SL::DB::Vendor';
 
   my $delivery_order = SL::DB::DeliveryOrder->new(
@@ -151,7 +152,7 @@ sub create_sales_order {
 
   my $save = delete $params{save} // 0;
 
-  my $customer = $params{customer} // SL::Dev::CustomerVendor::create_customer(name => 'Testcustomer')->save;
+  my $customer = $params{customer} // new_customer(name => 'Testcustomer')->save;
   die "illegal customer" unless ref($customer) eq 'SL::DB::Customer';
 
   my $order = SL::DB::Order->new(
@@ -182,7 +183,7 @@ sub create_purchase_order {
 
   my $save = delete $params{save} // 0;
 
-  my $vendor = $params{vendor} // SL::Dev::CustomerVendor::create_vendor(name => 'Testvendor')->save;
+  my $vendor = $params{vendor} // new_vendor(name => 'Testvendor')->save;
   die "illegal vendor" unless ref($vendor) eq 'SL::DB::Vendor';
 
   my $order = SL::DB::Order->new(
@@ -263,12 +264,12 @@ sub _create_item {
 sub _create_two_items {
   my ($record_type) = @_;
 
-  my $part1 = SL::Dev::Part::create_part(description => 'Testpart 1',
-                                         sellprice   => 12,
-                                        )->save;
-  my $part2 = SL::Dev::Part::create_part(description => 'Testpart 2',
-                                         sellprice   => 10,
-                                        )->save;
+  my $part1 = new_part(description => 'Testpart 1',
+                       sellprice   => 12,
+                      )->save;
+  my $part2 = new_part(description => 'Testpart 2',
+                       sellprice   => 10,
+                      )->save;
   my $item1 = _create_item(record_type => $record_type, part => $part1, qty => 5);
   my $item2 = _create_item(record_type => $record_type, part => $part2, qty => 8);
   return [ $item1, $item2 ];
@@ -277,8 +278,8 @@ sub _create_two_items {
 sub create_project {
   my (%params) = @_;
   my $project = SL::DB::Project->new(
-    projectnumber     => 1,
-    description       => "Test project",
+    projectnumber     => delete $params{projectnumber} // 1,
+    description       => delete $params{description} // "Test project",
     active            => 1,
     valid             => 1,
     project_status_id => SL::DB::Manager::ProjectStatus->find_by(name => "running")->id,
@@ -288,6 +289,17 @@ sub create_project {
   return $project;
 }
 
+sub create_department {
+  my (%params) = @_;
+
+  my $department = SL::DB::Department->new(
+    'description' => delete $params{description} // 'Test Department',
+  )->save;
+
+  $department->assign_attributes(%params) if %params;
+  return $department;
+
+}
 1;
 
 __END__
@@ -321,9 +333,10 @@ Example with params:
 
 Create a credit note (sales). Use positive quantities when adding items.
 
-Example including creation of parts and of credit_note
-  my $part1 = SL::Dev::Part::create_part(   partnumber => 'T4254')->save;
-  my $part2 = SL::Dev::Part::create_service(partnumber => 'Serv1')->save;
+Example including creation of parts and of credit_note:
+
+  my $part1 = SL::Dev::Part::new_part(   partnumber => 'T4254')->save;
+  my $part2 = SL::Dev::Part::new_service(partnumber => 'Serv1')->save;
   my $credit_note = SL::Dev::Record::create_credit_note(
     invnumber    => '34',
     taxincluded  => 0,
@@ -339,16 +352,17 @@ Examples:
 Create a sales order and save it directly via rose, without running
 calculate_prices_and_taxes:
 
- my $order = SL::Dev::Record::create_sales_order()->save;
+  my $order = SL::Dev::Record::create_sales_order()->save;
 
 Let create_sales_order run calculate_prices_and_taxes and save:
 
- my $order = SL::Dev::Record::create_sales_order(save => 1);
+  my $order = SL::Dev::Record::create_sales_order(save => 1);
 
 
-Example including creation of part and of sales order.
-  my $part1 = SL::Dev::Part::create_part(   partnumber => 'T4254')->save;
-  my $part2 = SL::Dev::Part::create_service(partnumber => 'Serv1')->save;
+Example including creation of part and of sales order:
+
+  my $part1 = SL::Dev::Part::new_part(   partnumber => 'T4254')->save;
+  my $part2 = SL::Dev::Part::new_service(partnumber => 'Serv1')->save;
   my $order = SL::Dev::Record::create_sales_order(
     save         => 1,
     taxincluded  => 0,
@@ -359,7 +373,7 @@ Example including creation of part and of sales order.
 
 Example: create 100 orders with the same part for 100 new customers:
 
-  my $part1 = SL::Dev::Part::create_part(partnumber => 'T6256')->save;
+  my $part1 = SL::Dev::Part::new_part(partnumber => 'T6256')->save;
   SL::Dev::Record::create_sales_order(
     save         => 1,
     taxincluded  => 0,
@@ -371,19 +385,23 @@ Example: create 100 orders with the same part for 100 new customers:
 See comments for C<create_sales_order>.
 
 Example:
- my $purchase_order = SL::Dev::Record::create_purchase_order(save => 1);
+
+  my $purchase_order = SL::Dev::Record::create_purchase_order(save => 1);
 
 
 =head2 C<create_item %PARAMS>
 
 Creates an item from a part object that can be added to a record.
 
-Required params: record_type (sales_invoice, sales_order, sales_delivery_order)
-                 part        (an SL::DB::Part object)
+Required params:
+
+  record_type (sales_invoice, sales_order, sales_delivery_order)
+  part        (an SL::DB::Part object)
 
 Example including creation of part and of invoice:
-  my $part    = SL::Dev::Part::create_part(  partnumber  => 'T4254')->save;
-  my $item    = SL::Dev::Record::create_item(record_type => 'sales_invoice', part => $part, qty => 2.5);
+
+  my $part    = SL::Dev::Part::new_part(  partnumber  => 'T4254')->save;
+  my $item    = SL::Dev::Record::create_invoice_item(part => $part, qty => 2.5);
   my $invoice = SL::Dev::Record::create_sales_invoice(
     taxincluded  => 0,
     invoiceitems => [ $item ],
@@ -394,6 +412,7 @@ Example including creation of part and of invoice:
 Creates a default project.
 
 Minimal example, creating a project with status "running" and type "Standard":
+
   my $project = SL::Dev::Record::create_project();
 
   $project = SL::Dev::Record::create_project(
@@ -401,7 +420,28 @@ Minimal example, creating a project with status "running" and type "Standard":
     description   => 'Test project',
   )
 
-=head1 TODO
+If C<$params{description}> or C<$params{projectnumber}> exists, this will override the
+default value 'Test project'.
+
+C<%params> should only contain alterable keys from the object Project.
+
+=head2 C<create_department %PARAMS>
+
+Creates a default department.
+
+Minimal example:
+
+  my $department = SL::Dev::Record::create_department();
+
+  my $department = SL::Dev::Record::create_department(
+    description => 'Hawaii',
+  )
+
+If C<$params{description}> exists, this will override the
+default value 'Test Department'.
+
+C<%params> should only contain alterable keys from the object Department.
+
 
 =head1 BUGS
 
